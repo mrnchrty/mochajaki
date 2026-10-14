@@ -1,14 +1,24 @@
--- Mochajaki Food Ordering System — schema and starter data
--- Import this file once into a fresh database (phpMyAdmin ➜ Import).
+-- Mochajaki Food Ordering System — the whole database in one file.
 --
--- WARNING: it drops and recreates every table, so re-importing erases all
--- existing accounts, orders and payments.
+-- Run this once and you are done. It does not matter what state MySQL is in:
+-- this file removes any leftover `mochajaki` database, creates a clean one with
+-- the right character set, then fills in every table and the starter menu.
+-- Running it again simply rebuilds everything, so it never half-applies.
 --
--- The CLI equivalent (note the charset flag — without it the curly apostrophe
--- in "Finger Lick’n Good" can be mangled):
---   mysql --default-character-set=utf8mb4 -u root < database.sql
+-- WARNING: it DELETES all accounts, orders and payments, including any you
+-- have already made. That is the point — it is the "start over" file. If you
+-- have real orders you must keep, use database-upgrade.sql instead.
+--
+-- How to run it:
+--   phpMyAdmin  →  Import  →  choose this file  →  Go
+--   Terminal    →  mysql --default-character-set=utf8mb4 -u root < database.sql
+--
+-- The database must be called `mochajaki`, because that is the name the
+-- application looks for. If you change DB_NAME in api/config.php, change the
+-- two names below to match.
 
-CREATE DATABASE IF NOT EXISTS mochajaki CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+DROP DATABASE IF EXISTS mochajaki;
+CREATE DATABASE mochajaki CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE mochajaki;
 
 SET NAMES utf8mb4;

@@ -61,15 +61,49 @@ try {
         ]
     );
 } catch (Throwable $e) {
-    // The detail is included on purpose: this runs on a local XAMPP install and
-    // the operator is also the developer. Without it, "Database connection
-    // failed." gives no clue whether MySQL is off, the password is wrong or the
-    // database was never imported.
-    json_out([
-        'error' => 'Cannot reach the database (' . first_line($e->getMessage()) . '). '
-                 . 'Check that MySQL is running in the XAMPP panel, that DB_USER/DB_PASS in api/config.php '
-                 . 'are right, and that ' . $dbName . ' exists in phpMyAdmin.',
-    ], 500);
+    $advice = database_connection_advice($e->getMessage(), $dbHost, $dbName);
+
+    // On the command line (tests/database.check.php) print it readably; the
+    // browser gets the same text as JSON so the page can show it.
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, "\nCannot use the database.\n\n  {$advice}\n\n");
+        exit(1);
+    }
+
+    json_out(['error' => $advice], 500);
+}
+
+/**
+ * Turns a connection failure into the one instruction that fixes it.
+ *
+ * The three messages handled here are the ones a XAMPP installation actually
+ * produces, and each needs a different fix — "it cannot connect" on its own
+ * sends people looking in the wrong place.
+ */
+function database_connection_advice(string $message, string $host, string $dbName): string
+{
+    if (stripos($message, 'Unknown database') !== false) {
+        return "The database '{$dbName}' does not exist yet. Open phpMyAdmin, choose Import, "
+             . 'and load database.sql — that one file creates the database, every table and the starter menu.';
+    }
+
+    if (stripos($message, 'Access denied') !== false) {
+        return 'MySQL refused that username or password (' . first_line($message) . '). '
+             . 'Set DB_USER and DB_PASS in api/config.php — a default XAMPP install uses user "root" '
+             . 'with an empty password.';
+    }
+
+    if (stripos($message, 'refused') !== false
+        || stripos($message, 'No such file or directory') !== false
+        || stripos($message, 'getaddrinfo') !== false
+        || stripos($message, 'No connection could be made') !== false) {
+        return "MySQL is not answering on {$host}. Start MySQL in the XAMPP Control Panel "
+             . '(the button next to Apache) and reload this page.';
+    }
+
+    return 'Cannot reach the database at ' . $host . ' (' . first_line($message) . '). '
+         . 'Check that MySQL is running, that the DB_USER/DB_PASS settings in api/config.php match '
+         . "your MySQL installation, and that the database '{$dbName}' has been imported.";
 }
 
 /**

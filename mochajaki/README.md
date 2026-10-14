@@ -27,11 +27,16 @@ orders and confirm e-wallet payments from the admin panel.
    mysql --default-character-set=utf8mb4 -u root < database.sql
    ```
 
-   The `--default-character-set=utf8mb4` flag matters: without it the peso sign
-   in the product descriptions can arrive as `?`. The script starts with
-   `CREATE DATABASE`/`USE`, so it does not need a database to be selected
-   first. (Importing it again drops and recreates every table — use it for a
-   fresh install only.)
+   `database.sql` is the only setup file you need, and it does not matter what
+   state MySQL is in when you run it: it removes any leftover `mochajaki`
+   database, creates a fresh one with the right character set, then adds every
+   table and the starter menu. Run it twice and you simply get the same clean
+   result. If you prefer to see it first, it needs no database selected —
+   the file creates its own.
+
+   The `--default-character-set=utf8mb4` flag matters only for the terminal
+   command: without it the peso sign in the product descriptions can arrive as
+   `?`. phpMyAdmin handles this by itself.
 4. If your MySQL setup differs from a default XAMPP install (user `root`, blank
    password), set `DB_HOST`/`DB_NAME`/`DB_USER`/`DB_PASS` at the top of
    `api/config.php`.
@@ -47,37 +52,45 @@ orders and confirm e-wallet payments from the admin panel.
 6. Open `http://localhost/mochajaki/customer/` for customers and
    `http://localhost/mochajaki/admin/` for administrators.
 
-## Upgrading a site that already has orders
+## Upgrading a site that already has real orders
 
-If you already have accounts and orders and you copied **new code** over the
-old files, the database must be brought up to date too. Do **not** re-import
-`database.sql` — it drops every table and your data goes with it. Import
-`database-upgrade.sql` instead:
+**You do not need this section to set the project up.** Just import
+`database.sql`.
+
+It applies only if your site is already live and has orders you must not lose,
+*and* you copied this newer code over the old files. In that case do **not**
+run `database.sql` — it deletes everything. Import `database-upgrade.sql`
+instead:
 
 - phpMyAdmin → select the database → **Import** → `database-upgrade.sql`
 - or `mysql --default-character-set=utf8mb4 -u root mochajaki < database-upgrade.sql`
 
-It only *adds* what is missing, never deletes anything, and is safe to run
+It only *adds* whatever is missing, never deletes a row, and is safe to run
 twice. This version adds the `login_attempts` table (used by the sign-in
 throttle) and the `orders.contact_number` and `orders.notes` columns.
+Otherwise, ignore the file entirely.
 
 ## If the site says "Failed to fetch"
 
 Something in the API returned an error instead of data. In order of likelihood:
 
-1. **The database is out of date.** Signing in and opening the order history
-   need tables and columns added since the first version. Run
-   `php tests/database.check.php` — it names exactly what is missing and which
-   file to import.
-2. **MySQL is not running.** Start it in the XAMPP Control Panel.
-3. **Wrong credentials.** Check `DB_USER`/`DB_PASS` in `api/config.php`.
-4. **The page was opened from the filesystem.** The address must start with
+1. **The database was never imported.** The API answers
+   *"The database 'mochajaki' does not exist yet"* — import `database.sql`.
+2. **MySQL is not running.** The API answers *"MySQL is not answering on
+   127.0.0.1"* — start MySQL in the XAMPP Control Panel.
+3. **Wrong credentials.** The API answers *"MySQL refused that username or
+   password"* — fix `DB_USER`/`DB_PASS` in `api/config.php`.
+4. **The database is half-imported or out of date.** Run
+   `php tests/database.check.php`; it names every missing table and column and
+   tells you which file to import.
+5. **The page was opened from the filesystem.** The address must start with
    `http://localhost/mochajaki/...`; opening `customer/index.html` by
    double-clicking it (`file://`) cannot reach the API at all.
 
-The API now answers database problems with a JSON message naming the missing
-table or column, so the page can show something useful instead of a vague
-network error. If you see a message there, it is the diagnosis.
+The API always answers with JSON, and for these failures the JSON *is* the
+instruction — the page shows that sentence in place of the menu or the order
+list, so read it there. Writing it the other way round (a blank page with a
+console error) is what made this hard to place in the first place.
 
 ## Default admin
 
