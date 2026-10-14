@@ -239,59 +239,88 @@
      </p>
     </div>
     <section class="surface account-surface">
-     <div class="account-state" id="account-state">
-      You are not signed in.
-     </div>
      <div class="profile-details" hidden="" id="profile-details">
      </div>
-     <div class="account-stats" hidden id="account-stats"></div>
-     <div class="auth-grid" id="auth-grid">
-      <form id="login-form">
+     <div class="account-stats" hidden="" id="account-stats">
+     </div>
+     <div class="auth-card" id="auth-card">
+      <div aria-label="Sign in or create an account" class="auth-tabs" role="tablist">
+       <button aria-controls="login-form" aria-selected="true" class="auth-tab active" data-action="auth-tab" data-tab="login" id="tab-login" role="tab" type="button">
+        Sign in
+       </button>
+       <button aria-controls="register-form" aria-selected="false" class="auth-tab" data-action="auth-tab" data-tab="register" id="tab-register" role="tab" type="button">
+        Create account
+       </button>
+      </div>
+      <form aria-labelledby="tab-login" class="auth-form" id="login-form" role="tabpanel">
        <h2>
         Welcome back
        </h2>
+       <p class="auth-copy">
+        Sign in to see your orders and check out faster.
+       </p>
        <label>
         Email
-        <input autocomplete="email" id="login-email" required="" type="email"/>
+        <input autocapitalize="none" autocomplete="username" id="login-email" required="" spellcheck="false" type="email"/>
        </label>
        <label>
         Password
         <input autocomplete="current-password" id="login-password" required="" type="password"/>
        </label>
-       <button class="primary" type="submit">
+       <button class="primary full" type="submit">
         Sign in
        </button>
       </form>
-      <form id="register-form">
+      <form aria-labelledby="tab-register" class="auth-form" hidden="" id="register-form" role="tabpanel">
        <h2>
-        Create account
+        Create your account
        </h2>
+       <p class="auth-copy">
+        Takes a minute, then you can order right away.
+       </p>
        <label>
         Full name
         <input autocomplete="name" id="reg-name" maxlength="120" required=""/>
        </label>
        <label>
         Email
-        <input autocomplete="email" id="reg-email" required="" type="email"/>
+        <input autocapitalize="none" autocomplete="email" id="reg-email" required="" spellcheck="false" type="email"/>
        </label>
        <label>
         Password
         <input autocomplete="new-password" id="reg-password" minlength="8" required="" type="password"/>
+        <span class="field-hint">
+         At least 8 characters.
+        </span>
        </label>
-       <button class="secondary-button" type="submit">
+       <button class="primary full" type="submit">
         Create account
        </button>
       </form>
      </div>
-     <form class="password-form" hidden id="password-form">
-      <h3>Change password</h3>
-      <label>Current password<input autocomplete="current-password" id="pw-current" required type="password"/></label>
-      <label>New password<input autocomplete="new-password" id="pw-new" minlength="8" required type="password"/></label>
-      <button class="secondary-button" type="submit">Update password</button>
-      <p class="form-message" id="password-message" role="status"></p>
-     </form>
-     <p class="form-message" id="auth-message" role="status">
+     <p class="form-message auth-message" id="auth-message" role="status">
      </p>
+     <form class="password-form" hidden="" id="password-form">
+      <h3>
+       Change password
+      </h3>
+      <label>
+       Current password
+       <input autocomplete="current-password" id="pw-current" required="" type="password"/>
+      </label>
+      <label>
+       New password
+       <input autocomplete="new-password" id="pw-new" minlength="8" required="" type="password"/>
+       <span class="field-hint">
+        At least 8 characters.
+       </span>
+      </label>
+      <button class="primary full" type="submit">
+       Update password
+      </button>
+      <p class="form-message" id="password-message" role="status">
+      </p>
+     </form>
      <button class="secondary-button" data-action="logout" hidden="" id="logout" type="button">
       Sign out
      </button>

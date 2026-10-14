@@ -649,8 +649,7 @@ function renderAccount() {
   const user = state.user;
 
   if (!user) {
-    $('account-state').textContent = 'You are not signed in.';
-    $('auth-grid').hidden = false;
+    $('auth-card').hidden = false;
     $('profile-details').hidden = true;
     $('profile-details').innerHTML = '';
     $('password-form').hidden = true;
@@ -665,7 +664,6 @@ function renderAccount() {
   const name = String(user.full_name || 'Customer').trim();
   const initial = name.charAt(0).toUpperCase();
 
-  $('account-state').textContent = 'You are signed in.';
   $('profile-details').hidden = false;
   $('profile-details').innerHTML = `
     <div class="profile-avatar">${esc(initial)}</div>
@@ -675,7 +673,7 @@ function renderAccount() {
       <p>${esc(user.email || '')}</p>
       <p class="muted">${user.role === 'admin' ? 'Administrator account' : 'Customer account'}</p>
     </div>`;
-  $('auth-grid').hidden = true;
+  $('auth-card').hidden = true;
   $('password-form').hidden = false;
   $('logout').hidden = false;
   $('pill-label').textContent = name.split(' ')[0];
@@ -683,6 +681,35 @@ function renderAccount() {
   $('guest-actions').hidden = true;
   $('user-menu').hidden = false;
   $('nav-orders').hidden = false;
+}
+
+/**
+ * Shows one of the two tabs on the signed-out account card.
+ * `tab` is 'login' or 'register'.
+ */
+function showAuthTab(tab) {
+  const wantsRegister = tab === 'register';
+
+  $('login-form').hidden = wantsRegister;
+  $('register-form').hidden = !wantsRegister;
+
+  $('tab-login').classList.toggle('active', !wantsRegister);
+  $('tab-register').classList.toggle('active', wantsRegister);
+  $('tab-login').setAttribute('aria-selected', String(!wantsRegister));
+  $('tab-register').setAttribute('aria-selected', String(wantsRegister));
+
+  // Roving tabindex: Tab reaches the tab list once, arrows move inside it.
+  $('tab-login').tabIndex = wantsRegister ? -1 : 0;
+  $('tab-register').tabIndex = wantsRegister ? 0 : -1;
+
+  $('auth-message').textContent = '';
+}
+
+/** Opens the account page on the given tab, ready for typing. */
+function openAuthCard(tab) {
+  showView('account');
+  showAuthTab(tab);
+  $(tab === 'register' ? 'reg-name' : 'login-email').focus();
 }
 
 function renderAccountStats() {
@@ -726,10 +753,11 @@ const actions = {
     showView('menu');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   },
-  'focus-login': () => { showView('account'); $('login-email').focus(); },
-  'focus-register': () => { showView('account'); $('reg-name').focus(); },
-  'sign-in-to-order': () => { state.authReturnView = 'orders'; showView('account'); $('login-email').focus(); },
-  'sign-up-to-order': () => { state.authReturnView = 'orders'; showView('account'); $('reg-name').focus(); },
+  'auth-tab': (button) => showAuthTab(button.dataset.tab),
+  'focus-login': () => openAuthCard('login'),
+  'focus-register': () => openAuthCard('register'),
+  'sign-in-to-order': () => { state.authReturnView = 'orders'; openAuthCard('login'); },
+  'sign-up-to-order': () => { state.authReturnView = 'orders'; openAuthCard('register'); },
   'pick-category': (button) => {
     state.activeCategory = button.dataset.category;
     renderCategories();
@@ -819,6 +847,16 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     closeOpenModals();
     $('menu-pop').hidden = true;
+    return;
+  }
+
+  // The account card is an ARIA tab list, so the arrow keys switch tabs too.
+  const onTabs = event.target.closest && event.target.closest('.auth-tabs');
+  if (onTabs && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+    event.preventDefault();
+    const wanted = event.target.id === 'tab-login' ? 'register' : 'login';
+    showAuthTab(wanted);
+    $(wanted === 'register' ? 'tab-register' : 'tab-login').focus();
   }
 });
 
@@ -899,6 +937,7 @@ async function signOut() {
     state.orders = [];
     state.authReturnView = 'account';
     renderAccount();
+    showAuthTab('login');
     await loadOrders();
     toast('Signed out');
   } catch (error) {

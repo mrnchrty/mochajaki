@@ -247,6 +247,7 @@ themselves); the archive `mochajaki-system-improved.zip` is untouched.
 | Sign-in throttling | `api/config.php` (+ `login_attempts` table), `api/login.php`, `api/register.php`, `api/change-password.php` | 8 failures per 15 minutes per e-mail + IP, and one bcrypt round is spent even for unknown addresses, so timing no longer reveals which accounts exist. Fixes **C2**, **C7**. |
 | Admin dashboard | `admin/admin.js`, `admin/index.html` | Session expiry returns to the sign-in screen (401/403 aware); no more "needs attention" double counting; sales count only non-cancelled **paid** orders; verification trail is shown; delete/toggle/edit buttons exist; the customer table drills into that customer's orders; hidden items are listed via the admin endpoint. Fixes **A3**, **B8**, **E3**, **E4**, **E6**, **E7**, **E9**. |
 | N+1 queries | `api/admin-orders.php` | Orders, their line counts and the best sellers come from single aggregate queries. Fixes **D1**. |
+| Account page (sign-in / registration) | `customer/index.html`, `customer.css`, `customer.js` | The signed-out page was two forms crammed side by side under a "You are not signed in." bar, with a ghost-style Create account button that looked disabled. It is now one card with **Sign in / Create account** tabs: one form on screen at a time, both buttons primary, a password hint matching the server's 8-character rule, native autocomplete hints, and proper ARIA tab semantics (arrow keys, roving tabindex). Fixes **E9** (dead CSS/markup drift) and the messy first impression a new customer gets. |
 | Docs | `README.md`, `database.sql`, `assets/payments/*` | PHP ≥ 8.1 + mbstring + fileinfo + MySQL 5.7 stated, utf8mb4 import command, delivery fee/option prices point at `api/pricing.php`, uploads folder is not web-served, `tests/pricing.test.php` documents itself. Fixes **F1**, **F2**, **F4**, **F5**, **F7**. |
 
 ## Verification actually run
@@ -256,10 +257,10 @@ themselves); the archive `mochajaki-system-improved.zip` is untouched.
 | All 19 PHP endpoints parse | `token_get_all(..., TOKEN_PARSE)` on PHP 8.4 (wasm) | ✅ 19/19 clean |
 | Menu prices | `php tests/pricing.test.php` | ✅ 36 passed, 0 failed |
 | Browser price == server price | extracted `unitPrice()` from `customer.js` vs `validate_customizations()` on PHP, 285 option combinations × 78 seeded products | ✅ 0 mismatches (31 invalid combinations correctly refused) |
-| Both front-ends, end to end | real `customer.js`/`admin.js` driven in jsdom against API-shaped fixtures: sign-in, cart with options, pickup vs delivery totals, order placement, payment upload, order detail, payment confirm, menu CRUD, customer drill-down, session expiry | ✅ 46/46 checks |
+| Both front-ends, end to end | real `customer.js`/`admin.js` driven in jsdom against API-shaped fixtures: sign-in, the new account tabs (click, arrow keys, roving tabindex, header Log in / Sign up entry points), cart with options, pickup vs delivery totals, order placement, payment upload, order detail, payment confirm, menu CRUD, customer drill-down, session expiry | ✅ 61/61 checks |
 | SQL | every statement in `api/*.php` and `database.sql` parsed as MySQL (node-sql-parser) | ✅ 15/15 runtime statements, 18/19 schema statements — the one "failure" is `SET NAMES utf8mb4`, which the parser does not implement but MySQL does |
 | Endpoint/session alignment | script: every `require_admin()` endpoint must be an `admin-*.php` file, and each page may only call endpoints of its own area | ✅ all aligned (this check caught and fixed two mismatches: the screenshot endpoint and the admin product list) |
-| CSS/DOM contract | every class used in HTML/JS has a rule; every id the JS queries exists | ✅ 140 classes, 0 gaps |
+| CSS/DOM contract | every class used in HTML/JS has a rule; every id the JS queries exists | ✅ 145 classes, 0 gaps |
 | CSP safety | no inline `on*=` handler, no inline `<script>`, no `@import`/remote `url()` in either page or stylesheet | ✅ |
 
 **Not verifiable here:** no PHP+MySQL stack and no reachable package mirrors in
