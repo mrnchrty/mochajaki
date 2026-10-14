@@ -50,6 +50,29 @@ const state = {
 
 /* ═══════════════════════════ 3. API client ═══════════════════════════ */
 
+/**
+ * Parses a response that should contain JSON.
+ *
+ * When PHP dies — a fatal error, usually a database that is out of date — the
+ * browser gets an HTML error page where it expected JSON. Saying so plainly
+ * saves a long hunt: "Unexpected token '<'" points at the front-end, when the
+ * real problem is the database.
+ */
+async function readJson(response) {
+  const text = await response.text();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const phpComplained = /(Fatal error|SQLSTATE|Unknown column|doesn't exist|Parse error|Uncaught)/i.test(text);
+    throw new Error(
+      `Server error (HTTP ${response.status}). `
+      + (phpComplained ? 'PHP reported a database or code error' : 'The API did not answer with JSON')
+      + ' — run "php tests/database.check.php" on the server, then open the API address in a new tab to read the message.'
+    );
+  }
+}
+
 async function api(path, options = {}) {
   const headers = { 'X-Requested-With': 'XMLHttpRequest', ...(options.headers || {}) };
   if (!(options.body instanceof FormData)) {
@@ -58,12 +81,7 @@ async function api(path, options = {}) {
 
   const response = await fetch(`${API}/${path}`, { credentials: 'same-origin', ...options, headers });
 
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    throw new Error('Unexpected server response.');
-  }
+  const data = await readJson(response);
   if (!response.ok) {
     const error = new Error(data.error || 'Request failed');
     error.status = response.status;

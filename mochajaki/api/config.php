@@ -61,9 +61,65 @@ try {
         ]
     );
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed.']);
-    exit;
+    // The detail is included on purpose: this runs on a local XAMPP install and
+    // the operator is also the developer. Without it, "Database connection
+    // failed." gives no clue whether MySQL is off, the password is wrong or the
+    // database was never imported.
+    json_out([
+        'error' => 'Cannot reach the database (' . first_line($e->getMessage()) . '). '
+                 . 'Check that MySQL is running in the XAMPP panel, that DB_USER/DB_PASS in api/config.php '
+                 . 'are right, and that ' . $dbName . ' exists in phpMyAdmin.',
+    ], 500);
+}
+
+/**
+ * Turns any uncaught error into a JSON reply.
+ *
+ * Without this a database problem escapes as a PHP fatal error: the browser
+ * receives an HTML error page where it expected JSON, so the page reports a
+ * vague fetch failure instead of naming the problem. The two errors that
+ * actually happen while setting this project up mean one thing — the database
+ * was created from an older database.sql — so they get the fix spelled out.
+ */
+set_exception_handler(function (Throwable $error): void {
+    error_log('[mochajaki] ' . $error->getMessage());
+
+    $message = $error->getMessage();
+    $sqlState = $error instanceof PDOException ? (string) $error->getCode() : '';
+
+    $advice = 'Import database.sql in phpMyAdmin for a fresh start, or '
+            . 'database-upgrade.sql if you want to keep existing orders and accounts.';
+    $report = 'Run "php tests/database.check.php" for a full list of what is missing.';
+    $missing = '';
+
+    // 42S02 = table missing, 42S22 = column missing.
+    if ($sqlState === '42S02' && preg_match("/Table '([^']+)'/i", $message, $m)) {
+        $missing = 'the table `' . $m[1] . '`';
+    } elseif ($sqlState === '42S22' && preg_match("/Unknown column '([^']+)'/i", $message, $m)) {
+        $missing = 'the column `' . $m[1] . '`';
+    }
+
+    if ($missing !== '') {
+        json_out([
+            'error' => 'The database is out of date — it is missing ' . $missing . '. ' . $advice . ' ' . $report,
+        ], 500);
+    }
+
+    if ($sqlState !== '') {
+        json_out([
+            'error' => 'The database rejected that request (' . first_line($message) . '). '
+                     . $advice . ' ' . $report,
+        ], 500);
+    }
+
+    json_out(['error' => 'Something went wrong on the server. ' . $report], 500);
+});
+
+/** One line of a (possibly multi-line) PDO message, for showing inside JSON. */
+function first_line(string $text): string
+{
+    $line = strtok($text, "\n");
+    return trim((string) ($line === false ? $text : $line));
 }
 
 /* ═══════════════════════════ 4. Order lifecycle ═══════════════════════════ */
@@ -248,11 +304,19 @@ function client_ip(): string
  */
 function throttle_check(PDO $pdo, string $scope, string $email): void
 {
-    $sql = 'SELECT COUNT(*) FROM login_attempts
-            WHERE scope = :scope AND created_at > (NOW() - INTERVAL :mins MINUTE)
-              AND (email = :email OR ip = :ip)';
+    // The window length is a constant from this file, never user input, so it is
+    // written straight into the query with %d. A bound parameter inside INTERVAL
+    // is accepted by some MySQL versions and rejected by others, and a failure
+    // here would break signing in completely — not worth the risk for a number
+    // that can never be supplied by a visitor.
+    $sql = sprintf(
+        'SELECT COUNT(*) FROM login_attempts
+          WHERE scope = :scope AND created_at > (NOW() - INTERVAL %d MINUTE)
+            AND (email = :email OR ip = :ip)',
+        THROTTLE_WINDOW_MINUTES
+    );
     $stmt = $pdo->prepare($sql);
-    $stmt->execute(['scope' => $scope, 'mins' => THROTTLE_WINDOW_MINUTES, 'email' => $email, 'ip' => client_ip()]);
+    $stmt->execute(['scope' => $scope, 'email' => $email, 'ip' => client_ip()]);
     $failures = (int) $stmt->fetchColumn();
 
     if ($failures >= THROTTLE_MAX_ATTEMPTS) {

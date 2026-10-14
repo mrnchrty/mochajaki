@@ -230,6 +230,29 @@ No `Cache-Control: no-store` on session-bearing JSON (`me.php`, `orders.php`), s
 
 # Resolution log
 
+> **Update — the "Failed to fetch" report.** The rewritten code needs database
+> objects the original schema did not have: the `login_attempts` table and the
+> `orders.contact_number` / `orders.notes` columns. Anyone who kept their
+> existing database (or imported the original `database.sql`) while copying the
+> new files gets SQL errors that the browser can only report as a failed fetch.
+> This has been fixed three ways:
+>
+> 1. **`database-upgrade.sql`** — adds just those objects to a live database,
+>    keeps every order and account, and can be run repeatedly.
+> 2. **`tests/database.check.php`** — run on the machine with MySQL; it lists
+>    every table and column the code needs and names what is missing plus the
+>    file that fixes it.
+> 3. **`api/config.php`** now turns an uncaught database error into a JSON
+>    message that says which table or column is missing and what to import,
+>    instead of a PHP fatal error. The pages show that message, and a
+>    non-JSON reply is reported as a server error rather than a parse failure.
+>
+> Verified: replaying the migration onto the original schema leaves **0 missing
+> columns** (from 6), the migration's SQL parses, the checker's expected columns
+> match the shipped schema table-for-table, and the page's error path is
+> exercised in jsdom (6/6).
+
+
 Everything above has since been fixed; this section records **how** each item
 was closed so the fixes can be checked. The code was rewritten in a readable,
 commented style (multi-line PHP/JS, no behaviour changes beyond the fixes
@@ -248,6 +271,7 @@ themselves); the archive `mochajaki-system-improved.zip` is untouched.
 | Admin dashboard | `admin/admin.js`, `admin/index.html` | Session expiry returns to the sign-in screen (401/403 aware); no more "needs attention" double counting; sales count only non-cancelled **paid** orders; verification trail is shown; delete/toggle/edit buttons exist; the customer table drills into that customer's orders; hidden items are listed via the admin endpoint. Fixes **A3**, **B8**, **E3**, **E4**, **E6**, **E7**, **E9**. |
 | N+1 queries | `api/admin-orders.php` | Orders, their line counts and the best sellers come from single aggregate queries. Fixes **D1**. |
 | Account page (sign-in / registration) | `customer/index.html`, `customer.css`, `customer.js` | The signed-out page was two forms crammed side by side under a "You are not signed in." bar, with a ghost-style Create account button that looked disabled. It is now one card with **Sign in / Create account** tabs: one form on screen at a time, both buttons primary, a password hint matching the server's 8-character rule, native autocomplete hints, and proper ARIA tab semantics (arrow keys, roving tabindex). Fixes **E9** (dead CSS/markup drift) and the messy first impression a new customer gets. |
+| Upgrade path & diagnostics | **new** `database-upgrade.sql`, `tests/database.check.php`, `api/config.php`, `customer/customer.js`, `admin/admin.js` | Adds a non-destructive migration for existing databases, a checker that names exactly what a database is missing, and JSON errors that survive a broken database instead of escaping as a PHP fatal the browser reports as a failed fetch. |
 | Docs | `README.md`, `database.sql`, `assets/payments/*` | PHP ≥ 8.1 + mbstring + fileinfo + MySQL 5.7 stated, utf8mb4 import command, delivery fee/option prices point at `api/pricing.php`, uploads folder is not web-served, `tests/pricing.test.php` documents itself. Fixes **F1**, **F2**, **F4**, **F5**, **F7**. |
 
 ## Verification actually run
@@ -258,6 +282,9 @@ themselves); the archive `mochajaki-system-improved.zip` is untouched.
 | Menu prices | `php tests/pricing.test.php` | ✅ 36 passed, 0 failed |
 | Browser price == server price | extracted `unitPrice()` from `customer.js` vs `validate_customizations()` on PHP, 285 option combinations × 78 seeded products | ✅ 0 mismatches (31 invalid combinations correctly refused) |
 | Both front-ends, end to end | real `customer.js`/`admin.js` driven in jsdom against API-shaped fixtures: sign-in, the new account tabs (click, arrow keys, roving tabindex, header Log in / Sign up entry points), cart with options, pickup vs delivery totals, order placement, payment upload, order detail, payment confirm, menu CRUD, customer drill-down, session expiry | ✅ 61/61 checks |
+| Schema coverage | every column the endpoints reference, checked against `database.sql`; the same check re-run against the **original** schema to prove it detects the drift (6 missing columns) | ✅ 0 missing now, 6 reported then |
+| Migration | the upgrade replayed onto the original schema, then compared with the shipped schema | ✅ reaches parity, 0 columns missing |
+| Broken-database UX | jsdom: API returns a schema error as JSON, and a raw PHP fatal as HTML | ✅ both surface a readable message (6/6) |
 | SQL | every statement in `api/*.php` and `database.sql` parsed as MySQL (node-sql-parser) | ✅ 15/15 runtime statements, 18/19 schema statements — the one "failure" is `SET NAMES utf8mb4`, which the parser does not implement but MySQL does |
 | Endpoint/session alignment | script: every `require_admin()` endpoint must be an `admin-*.php` file, and each page may only call endpoints of its own area | ✅ all aligned (this check caught and fixed two mismatches: the screenshot endpoint and the admin product list) |
 | CSS/DOM contract | every class used in HTML/JS has a rule; every id the JS queries exists | ✅ 145 classes, 0 gaps |

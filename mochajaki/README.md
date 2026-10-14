@@ -35,8 +35,49 @@ orders and confirm e-wallet payments from the admin panel.
 4. If your MySQL setup differs from a default XAMPP install (user `root`, blank
    password), set `DB_HOST`/`DB_NAME`/`DB_USER`/`DB_PASS` at the top of
    `api/config.php`.
-5. Open `http://localhost/mochajaki/customer/` for customers and
+5. Check that the import worked:
+
+   ```
+   php tests/database.check.php
+   ```
+
+   It lists every table and column the code uses and marks anything missing.
+   Run it whenever the site misbehaves — it answers "is my database right?"
+   without any guesswork.
+6. Open `http://localhost/mochajaki/customer/` for customers and
    `http://localhost/mochajaki/admin/` for administrators.
+
+## Upgrading a site that already has orders
+
+If you already have accounts and orders and you copied **new code** over the
+old files, the database must be brought up to date too. Do **not** re-import
+`database.sql` — it drops every table and your data goes with it. Import
+`database-upgrade.sql` instead:
+
+- phpMyAdmin → select the database → **Import** → `database-upgrade.sql`
+- or `mysql --default-character-set=utf8mb4 -u root mochajaki < database-upgrade.sql`
+
+It only *adds* what is missing, never deletes anything, and is safe to run
+twice. This version adds the `login_attempts` table (used by the sign-in
+throttle) and the `orders.contact_number` and `orders.notes` columns.
+
+## If the site says "Failed to fetch"
+
+Something in the API returned an error instead of data. In order of likelihood:
+
+1. **The database is out of date.** Signing in and opening the order history
+   need tables and columns added since the first version. Run
+   `php tests/database.check.php` — it names exactly what is missing and which
+   file to import.
+2. **MySQL is not running.** Start it in the XAMPP Control Panel.
+3. **Wrong credentials.** Check `DB_USER`/`DB_PASS` in `api/config.php`.
+4. **The page was opened from the filesystem.** The address must start with
+   `http://localhost/mochajaki/...`; opening `customer/index.html` by
+   double-clicking it (`file://`) cannot reach the API at all.
+
+The API now answers database problems with a JSON message naming the missing
+table or column, so the page can show something useful instead of a vague
+network error. If you see a message there, it is the diagnosis.
 
 ## Default admin
 
@@ -120,5 +161,8 @@ re-checked.
   `order_items.customizations` as JSON, together with a human-readable copy for
   receipts.
 - Order codes look like `MJK-260101-9F3C1A2B` (date plus a random part).
-- `tests/pricing.test.php` is the only test file; it needs no database and no
-  web server, so it is safe to run before every commit.
+- Two checkers ship with the project:
+  - `php tests/pricing.test.php` — the menu prices. Needs no database or web
+    server, so it is safe to run before every commit.
+  - `php tests/database.check.php` — your database against what the code needs.
+    Needs MySQL running, and never changes anything.
