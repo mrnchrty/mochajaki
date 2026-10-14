@@ -1,0 +1,1 @@
+<?php require __DIR__.'/config.php';json_out(['user'=>require_login()]);?>

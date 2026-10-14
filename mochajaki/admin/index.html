@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <title>
+   Mochajaki | Admin
+  </title>
+  <link href="admin.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <section class="login-screen" id="login-screen">
+   <div class="login-brand">
+    <span class="brand-mark">
+     M
+    </span>
+    <div>
+     <b>
+      Mochajaki
+     </b>
+     <small>
+      ADMINISTRATION
+     </small>
+    </div>
+   </div>
+   <form class="login-card" id="login-form">
+    <span class="eyebrow">
+     WELCOME BACK
+    </span>
+    <h1>
+     Admin sign in
+    </h1>
+    <label>
+     Email
+     <input autocomplete="username" id="email" required="" type="email"/>
+    </label>
+    <label>
+     Password
+     <input autocomplete="current-password" id="password" required="" type="password"/>
+    </label>
+    <button class="primary">
+     Sign in to dashboard
+    </button>
+    <p class="message" id="login-message">
+    </p>
+   </form>
+  </section>
+  <div hidden="" id="admin-app">
+   <aside class="sidebar">
+    <a class="side-brand" href="index.html">
+     <span class="brand-mark">
+      M
+     </span>
+     <span>
+      Mochajaki
+      <small>
+       ADMIN PANEL
+      </small>
+     </span>
+    </a>
+    <div class="side-label">
+     WORKSPACE
+    </div>
+    <button class="side-link active" data-section="overview">
+     <span>
+      ▦
+     </span>
+     Overview
+    </button>
+    <button class="side-link" data-section="orders">
+     <span>
+      ▤
+     </span>
+     Orders
+     <b id="pending-count">
+      0
+     </b>
+    </button>
+    <button class="side-link" data-section="menu">
+     <span>
+      ☷
+     </span>
+     Menu management
+    </button>
+    <button class="side-link" data-section="customers">
+     <span>
+      ♙
+     </span>
+     Customers
+    </button>
+    <div class="sidebar-bottom">
+     <div class="admin-profile">
+      <div class="avatar">
+       M
+      </div>
+      <div>
+       <b id="admin-name">
+        Administrator
+       </b>
+       <small>
+        Administrator
+       </small>
+      </div>
+     </div>
+     <button class="logout-link" id="logout">
+      &rarrhk; Sign out
+     </button>
+     <a class="customer-link" href="../customer/index.html">
+      View customer site &nearrow;
+     </a>
+    </div>
+   </aside>
+   <main class="admin-main">
+    <header class="admin-topbar">
+     <div>
+      <span class="eyebrow">
+       MOCHAJAKI MANAGEMENT
+      </span>
+      <h1 id="page-title">
+       Overview
+      </h1>
+     </div>
+     <div class="top-actions">
+      <span class="online-dot">
+       ● System online
+      </span>
+      <button class="outline-button" id="refresh">
+       &orarr; Refresh
+      </button>
+     </div>
+    </header>
+    <section class="admin-section" id="section-overview">
+     <div class="welcome-banner">
+      <div>
+       <span class="eyebrow">
+        YOUR BUSINESS AT A GLANCE
+       </span>
+       <h2>
+        Here&rsquo;s how Mochajaki is doing.
+       </h2>
+       <p>
+        Track orders, sales, and the menu from one place.
+       </p>
+      </div>
+      <div class="welcome-icon">
+       ✿
+      </div>
+     </div>
+     <div class="stats-grid">
+      <article class="stat-card">
+       <div class="stat-icon pink-icon">
+        ▤
+       </div>
+       <span>
+        Total orders
+       </span>
+       <strong id="stat-orders">
+        0
+       </strong>
+       <small>
+        All recorded orders
+       </small>
+      </article>
+      <article class="stat-card">
+       <div class="stat-icon peach-icon">
+        ₱
+       </div>
+       <span>
+        Recorded sales
+       </span>
+       <strong id="stat-sales">
+        ₱0.00
+       </strong>
+       <small>
+        Non-cancelled orders
+       </small>
+      </article>
+      <article class="stat-card">
+       <div class="stat-icon lilac-icon">
+        ☷
+       </div>
+       <span>
+        Menu items
+       </span>
+       <strong id="stat-products">
+        0
+       </strong>
+       <small>
+        Listed products
+       </small>
+      </article>
+      <article class="stat-card">
+       <div class="stat-icon green-icon">
+        ◷
+       </div>
+       <span>
+        Needs attention
+       </span>
+       <strong id="stat-pending">
+        0
+       </strong>
+       <small>
+        Payment reviews and new orders
+       </small>
+      </article>
+     </div>
+     <div class="dashboard-grid">
+      <section class="admin-card">
+       <div class="card-heading">
+        <div>
+         <h2>
+          Recent orders
+         </h2>
+         <p>
+          Latest customer orders
+         </p>
+        </div>
+        <button class="text-button" data-goto="orders">
+         View all &rarr;
+        </button>
+       </div>
+       <div class="table-wrap" id="recent-orders">
+       </div>
+      </section>
+      <section class="admin-card">
+       <div class="card-heading">
+        <div>
+         <h2>
+          Order status
+         </h2>
+         <p>
+          Current order distribution
+         </p>
+        </div>
+       </div>
+       <div class="status-summary" id="status-summary">
+       </div>
+      </section>
+     </div>
+     <section class="admin-card">
+      <div class="card-heading">
+       <div>
+        <h2>
+         Best-selling items
+        </h2>
+        <p>
+         Based on recorded order quantities
+        </p>
+       </div>
+      </div>
+      <div class="best-sellers" id="best-sellers">
+      </div>
+     </section>
+    </section>
+    <section class="admin-section" hidden="" id="section-orders">
+     <div class="toolbar">
+      <label class="search-input">
+       &telrec;
+       <input id="order-search" placeholder="Search order or customer"/>
+      </label>
+      <select id="order-filter">
+       <option value="All">
+        All statuses
+       </option>
+       <option>
+        Order Placed
+       </option>
+       <option>
+        Confirmed
+       </option>
+       <option>
+        Preparing
+       </option>
+       <option>
+        Ready for Pickup
+       </option>
+       <option>
+        Out for Delivery
+       </option>
+       <option>
+        Completed
+       </option>
+       <option>
+        Cancelled
+       </option>
+      </select>
+      <select id="payment-filter">
+       <option value="All">
+        All payments
+       </option>
+       <option>
+        Pending
+       </option>
+       <option>
+        Pending Verification
+       </option>
+       <option>
+        Paid
+       </option>
+       <option>
+        Failed
+       </option>
+       <option>
+        Refunded
+       </option>
+      </select>
+     </div>
+     <section class="admin-card">
+      <div class="card-heading">
+       <div>
+        <h2>
+         All orders
+        </h2>
+        <p>
+         Review, update, and verify orders
+        </p>
+       </div>
+      </div>
+      <div class="table-wrap" id="orders-table">
+      </div>
+     </section>
+    </section>
+    <section class="admin-section" hidden="" id="section-menu">
+     <div class="toolbar">
+      <label class="search-input">
+       &telrec;
+       <input id="product-search" placeholder="Search menu"/>
+      </label>
+      <button class="primary" id="add-product-open">
+       ＋ Add menu item
+      </button>
+     </div>
+     <section class="admin-card">
+      <div class="card-heading">
+       <div>
+        <h2>
+         Menu items
+        </h2>
+        <p>
+         Update product availability and pricing
+        </p>
+       </div>
+      </div>
+      <div class="table-wrap" id="products-table">
+      </div>
+     </section>
+    </section>
+    <section class="admin-section" hidden="" id="section-customers">
+     <section class="admin-card">
+      <div class="card-heading">
+       <div>
+        <h2>
+         Registered customers
+        </h2>
+        <p>
+         Customer accounts
+        </p>
+       </div>
+      </div>
+      <div class="table-wrap" id="customers-table">
+      </div>
+     </section>
+    </section>
+   </main>
+  </div>
+  <div class="modal-backdrop" hidden="" id="order-modal">
+   <section class="modal wide-modal">
+    <button class="modal-close" data-close="order-modal">
+     &times;
+    </button>
+    <div id="order-modal-content">
+    </div>
+   </section>
+  </div>
+  <div class="modal-backdrop" hidden="" id="product-modal">
+   <section class="modal">
+    <button class="modal-close" data-close="product-modal">
+     &times;
+    </button>
+    <h2 id="product-modal-title">
+     Add menu item
+    </h2>
+    <form id="product-form">
+     <input id="product-id" type="hidden"/>
+     <label>
+      Product name
+      <input id="product-name" maxlength="150" required=""/>
+     </label>
+     <label>
+      Category
+      <input id="product-category" maxlength="80" required=""/>
+     </label>
+     <label>
+      Description
+      <textarea id="product-description" rows="2"></textarea>
+     </label>
+     <label>
+      Price (₱)
+      <input id="product-price" min="0.01" required="" step="0.01" type="number"/>
+     </label>
+     <label>
+      Image URL
+      <input id="product-image" type="url"/>
+     </label>
+     <button class="primary">
+      Save product
+     </button>
+     <p class="message" id="product-message">
+     </p>
+    </form>
+   </section>
+  </div>
+  <script src="admin.js">
+  </script>
+ </body>
+</html>

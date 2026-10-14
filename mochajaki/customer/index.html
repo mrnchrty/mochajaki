@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1" name="viewport"/>
+  <title>
+   Mochajaki | Order Online
+  </title>
+  <link href="customer.css" rel="stylesheet"/>
+ </head>
+ <body>
+  <header class="topbar">
+   <a aria-label="Mochajaki home" class="brand" href="#menu" id="brand-home">
+    <span class="brand-mark">
+     M
+    </span>
+    <span>
+     Mochajaki
+     <small>
+      FOOD &middot; DRINKS &middot; GOOD VIBES
+     </small>
+    </span>
+   </a>
+   <nav aria-label="Main navigation">
+    <button class="navlink active" data-view="menu">
+     Menu
+    </button>
+    <button class="navlink" data-view="cart">
+     Cart
+     <b id="cart-count">
+      0
+     </b>
+    </button>
+    <button class="navlink" data-view="orders" hidden id="nav-orders">
+     My Orders
+    </button>
+   </nav>
+   <div class="header-actions">
+    <div class="guest-actions" id="guest-actions">
+     <button class="link-button" id="hdr-login">Log in</button>
+     <button class="primary small" id="hdr-signup">Sign up</button>
+    </div>
+    <div class="user-menu" hidden id="user-menu">
+     <button aria-expanded="false" aria-haspopup="true" class="account-pill" id="header-account"><span class="pill-avatar" id="pill-avatar"></span><span id="pill-label"></span><span class="caret">&#9662;</span></button>
+     <div class="menu-pop" hidden id="menu-pop">
+      <button data-view="account">My account</button>
+      <button data-view="orders">My orders</button>
+      <button id="hdr-logout">Sign out</button>
+     </div>
+    </div>
+   </div>
+  </header>
+  <main>
+   <section class="view" id="view-menu">
+    <section class="hero">
+     <div>
+      <span class="eyebrow">
+       YOUR LOCAL CRAVINGS, MADE HAPPY
+      </span>
+      <h1>
+       A little sip.
+       <br/>
+       <em>
+        A lot of happy.
+       </em>
+      </h1>
+      <p>
+       Comfort food, favorite drinks, and something delicious for every craving.
+      </p>
+      <button class="primary" data-scroll-menu="">
+       Explore menu
+       <span>
+        &searrow;
+       </span>
+      </button>
+     </div>
+     <div class="hero-art">
+      <div class="hero-orb orb-one">
+      </div>
+      <div class="hero-orb orb-two">
+      </div>
+      <img alt="Fresh burger" src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&amp;fit=crop&amp;w=900&amp;q=85"/>
+      <div class="floating-note">
+       Made for your
+       <br/>
+       <strong>
+        happy cravings ♡
+       </strong>
+      </div>
+     </div>
+    </section>
+    <section class="menu-section" id="menu">
+     <div class="section-top">
+      <div>
+       <span class="eyebrow">
+        FIND YOUR FAVORITE
+       </span>
+       <h2>
+        Something good awaits.
+       </h2>
+      </div>
+      <label class="searchbox">
+       <span>
+        &telrec;
+       </span>
+       <input id="search" placeholder="Search menu" type="search"/>
+      </label>
+     </div>
+     <div class="categories" id="categories">
+     </div>
+     <div class="menu-grid" id="menu-grid">
+      <p class="muted">
+       Loading menu&hellip;
+      </p>
+     </div>
+    </section>
+   </section>
+   <section class="view" hidden="" id="view-cart">
+    <div class="page-heading">
+     <span class="eyebrow">
+      ALMOST THERE
+     </span>
+     <h1>
+      Your cart
+     </h1>
+     <p>
+      Review your picks before checking out.
+     </p>
+    </div>
+    <div class="checkout-layout">
+     <section class="surface">
+      <div class="surface-title">
+       <h2>
+        Your items
+       </h2>
+       <span id="cart-count-label">
+        0 items
+       </span>
+      </div>
+      <div id="cart-items">
+      </div>
+     </section>
+     <section class="surface checkout-card">
+      <h2>
+       Checkout
+      </h2>
+      <label>
+       Order type
+       <select id="order-type">
+        <option value="Pickup">
+         Pickup
+        </option>
+        <option value="Delivery">
+         Delivery
+        </option>
+       </select>
+      </label>
+      <label hidden="" id="address-field">
+       Delivery address
+       <textarea id="address" placeholder="House number, street, barangay, city" rows="3"></textarea>
+      </label>
+      <label>
+       Payment method
+       <select id="payment">
+        <option value="Cash">
+         Cash
+        </option>
+        <option value="GCash">
+         GCash
+        </option>
+        <option value="Maya">
+         Maya
+        </option>
+       </select>
+      </label>
+      <div class="payment-info" hidden="" id="online-payment-info">
+       <p id="qr-instructions">
+        Submit your payment details after placing the order.
+       </p>
+       <div class="qr-row">
+        <div>
+         <b>
+          GCash QR
+         </b>
+         <img alt="GCash QR code" id="gcash-qr" onerror="this.style.display='none'" src="../assets/payments/gcash-qr.png"/>
+        </div>
+        <div>
+         <b>
+          Maya QR
+         </b>
+         <img alt="Maya QR code" id="maya-qr" onerror="this.style.display='none'" src="../assets/payments/maya-qr.png"/>
+        </div>
+       </div>
+       <p class="small muted">
+        The payment will remain pending until an administrator verifies it.
+       </p>
+      </div>
+      <div class="summary-line">
+       <span>
+        Subtotal
+       </span>
+       <b id="cart-subtotal">
+        ₱0.00
+       </b>
+      </div>
+      <div class="summary-line">
+       <span>
+        Delivery fee
+       </span>
+       <b id="delivery-fee">
+        ₱0.00
+       </b>
+      </div>
+      <div class="summary-line total-line">
+       <span>
+        Total
+       </span>
+       <b id="cart-total">
+        ₱0.00
+       </b>
+      </div>
+      <button class="primary full" id="place-order">
+       Place order
+       <span>
+        &rarr;
+       </span>
+      </button>
+      <p class="form-message" id="checkout-message" role="status">
+      </p>
+     </section>
+    </div>
+   </section>
+   <section class="view" hidden="" id="view-account">
+    <div class="page-heading">
+     <span class="eyebrow">
+      YOUR MOCHAJAKI
+     </span>
+     <h1>
+      My account
+     </h1>
+     <p>
+      Manage your account and keep your order details in one place.
+     </p>
+    </div>
+    <section class="surface account-surface">
+     <div class="account-state" id="account-state">
+      You are not signed in.
+     </div>
+     <div class="profile-details" hidden="" id="profile-details">
+     </div>
+     <div class="account-stats" hidden id="account-stats"></div>
+     <div class="auth-grid" id="auth-grid">
+      <form id="login-form">
+       <h2>
+        Welcome back
+       </h2>
+       <label>
+        Email
+        <input autocomplete="email" id="login-email" required="" type="email"/>
+       </label>
+       <label>
+        Password
+        <input autocomplete="current-password" id="login-password" required="" type="password"/>
+       </label>
+       <button class="primary">
+        Sign in
+       </button>
+      </form>
+      <form id="register-form">
+       <h2>
+        Create account
+       </h2>
+       <label>
+        Full name
+        <input autocomplete="name" id="reg-name" maxlength="120" required=""/>
+       </label>
+       <label>
+        Email
+        <input autocomplete="email" id="reg-email" required="" type="email"/>
+       </label>
+       <label>
+        Password
+        <input autocomplete="new-password" id="reg-password" minlength="8" required="" type="password"/>
+       </label>
+       <button class="secondary-button">
+        Create account
+       </button>
+      </form>
+     </div>
+     <form class="password-form" hidden id="password-form">
+      <h3>Change password</h3>
+      <label>Current password<input autocomplete="current-password" id="pw-current" required type="password"/></label>
+      <label>New password<input autocomplete="new-password" id="pw-new" minlength="8" required type="password"/></label>
+      <button class="secondary-button">Update password</button>
+      <p class="form-message" id="password-message" role="status"></p>
+     </form>
+     <p class="form-message" id="auth-message" role="status">
+     </p>
+     <button class="secondary-button" hidden="" id="logout">
+      Sign out
+     </button>
+    </section>
+   </section>
+   <section class="view" hidden="" id="view-orders">
+    <div class="page-heading">
+     <span class="eyebrow">
+      YOUR ORDERS
+     </span>
+     <h1>
+      Order history
+     </h1>
+     <p>
+      Follow your order from preparation to pickup or delivery.
+     </p>
+    </div>
+    <div class="order-list" id="orders-list">
+    </div>
+   </section>
+  </main>
+  <footer>
+   <span class="brand-mark small-mark">
+    M
+   </span>
+   Mochajaki
+   <span>
+    Made with love, served with a smile.
+   </span>
+  </footer>
+  <div class="modal-backdrop" hidden="" id="product-modal">
+   <section aria-labelledby="modal-title" aria-modal="true" class="modal" role="dialog">
+    <button aria-label="Close" class="modal-close" id="modal-close">
+     &times;
+    </button>
+    <div id="modal-content">
+    </div>
+   </section>
+  </div>
+  <div class="modal-backdrop" hidden="" id="payment-modal">
+   <section aria-labelledby="payment-modal-title" aria-modal="true" class="modal payment-modal" role="dialog">
+    <button aria-label="Close" class="modal-close" id="payment-close">
+     &times;
+    </button>
+    <span class="eyebrow">
+     PAYMENT DETAILS
+    </span>
+    <h2 id="payment-modal-title">
+     Submit payment reference
+    </h2>
+    <p id="payment-modal-copy">
+     Your order is created. Add your reference number and optional screenshot.
+    </p>
+    <form id="payment-form">
+     <input id="payment-order-id" type="hidden"/>
+     <label>
+      Reference number
+      <input id="payment-reference" maxlength="190" required=""/>
+     </label>
+     <label>
+      Payment screenshot (optional)
+      <input accept="image/png,image/jpeg,image/webp" id="payment-screenshot" type="file"/>
+     </label>
+     <button class="primary full">
+      Submit for verification
+     </button>
+    </form>
+    <p class="form-message" id="payment-message" role="status">
+    </p>
+   </section>
+  </div>
+  <script src="customer.js">
+  </script>
+ </body>
+</html>

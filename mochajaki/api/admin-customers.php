@@ -1,0 +1,1 @@
+<?php require __DIR__.'/config.php';require_admin();$s=$pdo->query("SELECT u.id,u.full_name,u.email,u.created_at,COUNT(o.id) order_count FROM users u LEFT JOIN orders o ON o.customer_id=u.id WHERE u.role='customer' GROUP BY u.id ORDER BY u.id DESC");json_out(['customers'=>$s->fetchAll()]);?>
