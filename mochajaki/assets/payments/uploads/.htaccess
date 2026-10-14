@@ -1,0 +1,11 @@
+# Payment screenshots contain personal information (names, e-wallet numbers,
+# reference numbers), so they must never be fetched straight from the browser.
+#
+# Customers never see this folder, and administrators read a screenshot through
+# api/admin-payment-proof.php, which checks for a valid admin session first.
+#
+# If your Apache ignores .htaccess files, move this folder outside the web root
+# and update $uploadDir in api/payment-submit.php accordingly.
+
+Options -Indexes
+Require all denied

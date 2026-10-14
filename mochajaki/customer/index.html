@@ -10,7 +10,7 @@
  </head>
  <body>
   <header class="topbar">
-   <a aria-label="Mochajaki home" class="brand" href="#menu" id="brand-home">
+   <a aria-label="Mochajaki home" class="brand" data-action="scroll-top" href="#menu" id="brand-home">
     <span class="brand-mark">
      M
     </span>
@@ -22,30 +22,30 @@
     </span>
    </a>
    <nav aria-label="Main navigation">
-    <button class="navlink active" data-view="menu">
+    <button class="navlink active" data-view="menu" type="button">
      Menu
     </button>
-    <button class="navlink" data-view="cart">
+    <button class="navlink" data-view="cart" type="button">
      Cart
      <b id="cart-count">
       0
      </b>
     </button>
-    <button class="navlink" data-view="orders" hidden id="nav-orders">
+    <button class="navlink" data-view="orders" hidden id="nav-orders" type="button">
      My Orders
     </button>
    </nav>
    <div class="header-actions">
     <div class="guest-actions" id="guest-actions">
-     <button class="link-button" id="hdr-login">Log in</button>
-     <button class="primary small" id="hdr-signup">Sign up</button>
+     <button class="link-button" data-action="focus-login" id="hdr-login" type="button">Log in</button>
+     <button class="primary small" data-action="focus-register" id="hdr-signup" type="button">Sign up</button>
     </div>
     <div class="user-menu" hidden id="user-menu">
-     <button aria-expanded="false" aria-haspopup="true" class="account-pill" id="header-account"><span class="pill-avatar" id="pill-avatar"></span><span id="pill-label"></span><span class="caret">&#9662;</span></button>
+     <button aria-expanded="false" aria-haspopup="true" class="account-pill" id="header-account" type="button"><span class="pill-avatar" id="pill-avatar"></span><span id="pill-label"></span><span class="caret">&#9662;</span></button>
      <div class="menu-pop" hidden id="menu-pop">
-      <button data-view="account">My account</button>
-      <button data-view="orders">My orders</button>
-      <button id="hdr-logout">Sign out</button>
+      <button data-view="account" type="button">My account</button>
+      <button data-view="orders" type="button">My orders</button>
+      <button data-action="logout" id="hdr-logout" type="button">Sign out</button>
      </div>
     </div>
    </div>
@@ -67,7 +67,7 @@
       <p>
        Comfort food, favorite drinks, and something delicious for every craving.
       </p>
-      <button class="primary" data-scroll-menu="">
+      <button class="primary" data-action="scroll-menu" type="button">
        Explore menu
        <span>
         &searrow;
@@ -157,7 +157,15 @@
       </label>
       <label hidden="" id="address-field">
        Delivery address
-       <textarea id="address" placeholder="House number, street, barangay, city" rows="3"></textarea>
+       <textarea id="address" maxlength="500" placeholder="House number, street, barangay, city" rows="3"></textarea>
+      </label>
+      <label hidden="" id="contact-field">
+       Contact number
+       <input id="contact-number" inputmode="tel" maxlength="30" placeholder="0917 000 0000" type="tel"/>
+      </label>
+      <label>
+       Notes for the kitchen
+       <input id="order-notes" maxlength="300" placeholder="Optional — e.g. no onions" type="text"/>
       </label>
       <label>
        Payment method
@@ -177,21 +185,9 @@
        <p id="qr-instructions">
         Submit your payment details after placing the order.
        </p>
-       <div class="qr-row">
-        <div>
-         <b>
-          GCash QR
-         </b>
-         <img alt="GCash QR code" id="gcash-qr" onerror="this.style.display='none'" src="../assets/payments/gcash-qr.png"/>
-        </div>
-        <div>
-         <b>
-          Maya QR
-         </b>
-         <img alt="Maya QR code" id="maya-qr" onerror="this.style.display='none'" src="../assets/payments/maya-qr.png"/>
-        </div>
+       <div class="qr-row" hidden id="qr-row">
        </div>
-       <p class="small muted">
+       <p class="small muted" id="payment-note">
         The payment will remain pending until an administrator verifies it.
        </p>
       </div>
@@ -204,7 +200,7 @@
        </b>
       </div>
       <div class="summary-line">
-       <span>
+       <span id="delivery-fee-label">
         Delivery fee
        </span>
        <b id="delivery-fee">
@@ -219,7 +215,7 @@
         ₱0.00
        </b>
       </div>
-      <button class="primary full" id="place-order">
+      <button class="primary full" data-action="place-order" id="place-order" type="button">
        Place order
        <span>
         &rarr;
@@ -262,7 +258,7 @@
         Password
         <input autocomplete="current-password" id="login-password" required="" type="password"/>
        </label>
-       <button class="primary">
+       <button class="primary" type="submit">
         Sign in
        </button>
       </form>
@@ -282,7 +278,7 @@
         Password
         <input autocomplete="new-password" id="reg-password" minlength="8" required="" type="password"/>
        </label>
-       <button class="secondary-button">
+       <button class="secondary-button" type="submit">
         Create account
        </button>
       </form>
@@ -291,12 +287,12 @@
       <h3>Change password</h3>
       <label>Current password<input autocomplete="current-password" id="pw-current" required type="password"/></label>
       <label>New password<input autocomplete="new-password" id="pw-new" minlength="8" required type="password"/></label>
-      <button class="secondary-button">Update password</button>
+      <button class="secondary-button" type="submit">Update password</button>
       <p class="form-message" id="password-message" role="status"></p>
      </form>
      <p class="form-message" id="auth-message" role="status">
      </p>
-     <button class="secondary-button" hidden="" id="logout">
+     <button class="secondary-button" data-action="logout" hidden="" id="logout" type="button">
       Sign out
      </button>
     </section>
@@ -313,6 +309,7 @@
       Follow your order from preparation to pickup or delivery.
      </p>
     </div>
+    <p class="form-message" id="orders-message" role="status"></p>
     <div class="order-list" id="orders-list">
     </div>
    </section>
@@ -326,18 +323,18 @@
     Made with love, served with a smile.
    </span>
   </footer>
-  <div class="modal-backdrop" hidden="" id="product-modal">
+  <div class="modal-backdrop" data-close-modal="product-modal" hidden="" id="product-modal">
    <section aria-labelledby="modal-title" aria-modal="true" class="modal" role="dialog">
-    <button aria-label="Close" class="modal-close" id="modal-close">
+    <button aria-label="Close" class="modal-close" data-close-modal="product-modal" id="modal-close" type="button">
      &times;
     </button>
     <div id="modal-content">
     </div>
    </section>
   </div>
-  <div class="modal-backdrop" hidden="" id="payment-modal">
+  <div class="modal-backdrop" data-close-modal="payment-modal" hidden="" id="payment-modal">
    <section aria-labelledby="payment-modal-title" aria-modal="true" class="modal payment-modal" role="dialog">
-    <button aria-label="Close" class="modal-close" id="payment-close">
+    <button aria-label="Close" class="modal-close" data-close-modal="payment-modal" id="payment-close" type="button">
      &times;
     </button>
     <span class="eyebrow">
@@ -353,13 +350,13 @@
      <input id="payment-order-id" type="hidden"/>
      <label>
       Reference number
-      <input id="payment-reference" maxlength="190" required=""/>
+      <input id="payment-reference" maxlength="190" minlength="4" required=""/>
      </label>
      <label>
       Payment screenshot (optional)
       <input accept="image/png,image/jpeg,image/webp" id="payment-screenshot" type="file"/>
      </label>
-     <button class="primary full">
+     <button class="primary full" type="submit">
       Submit for verification
      </button>
     </form>

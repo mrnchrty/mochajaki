@@ -1,1 +1,251 @@
-<?php require __DIR__.'/config.php';$user=require_login();$m=$_SERVER['REQUEST_METHOD']??'GET';if($m==='GET'){$s=$pdo->prepare("SELECT o.id,o.order_code,o.order_type,o.delivery_address,o.subtotal,o.delivery_fee,o.total,o.status,o.created_at,p.method payment_method,p.status payment_status,p.gateway_reference payment_reference,GROUP_CONCAT(CONCAT(oi.product_name,' × ',oi.quantity) ORDER BY oi.id SEPARATOR ', ') items_summary FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN payments p ON p.order_id=o.id WHERE o.customer_id=? GROUP BY o.id,p.id ORDER BY o.id DESC");$s->execute([$user['id']]);json_out(['orders'=>$s->fetchAll()]);}if($m!=='POST')json_out(['error'=>'Method not allowed.'],405);$d=body_json();$items=$d['items']??[];$type=($d['order_type']??'Pickup')==='Delivery'?'Delivery':'Pickup';$address=trim((string)($d['address']??''));$method=(string)($d['payment_method']??'Cash');if(!is_array($items)||!count($items))json_out(['error'=>'Your cart is empty.'],422);if(count($items)>50)json_out(['error'=>'Too many cart items.'],422);if($type==='Delivery'&&$address==='')json_out(['error'=>'Delivery address is required.'],422);if(!in_array($method,['Cash','GCash','Maya'],true))json_out(['error'=>'Select a valid payment method.'],422);$allowed=['flavor','sweetness','size','rice_type','pieces','extra_rice','pearl','nata','side','variant','add_egg','add_cheese','add_ham','add_bacon','add_seaweed'];try{$pdo->beginTransaction();$validated=[];$subtotal=0;foreach($items as $it){$pid=(int)($it['product_id']??0);$qty=(int)($it['quantity']??0);$custom=$it['customizations']??[];if($pid<1||$qty<1||$qty>50||!is_array($custom))throw new RuntimeException('Invalid cart item.');$s=$pdo->prepare('SELECT id,name,category,price FROM products WHERE id=? AND is_available=1 FOR UPDATE');$s->execute([$pid]);$p=$s->fetch();if(!$p)throw new RuntimeException('A selected item is no longer available.');$clean=[];foreach($custom as $k=>$v){if(in_array($k,$allowed,true)&&($v===true||is_string($v)||is_numeric($v)))$clean[$k]=$v;}if(preg_match('/milkshake/i',$p['category'].' '.$p['name'])&&!preg_match('/combo/i',$p['category'].' '.$p['name'])&&(empty($clean['flavor'])||!in_array($clean['size']??'', ['16 oz','22 oz'], true)))throw new RuntimeException('Choose a milkshake size and flavor.');if(preg_match('/fruit soda/i',$p['category'].' '.$p['name'])&&!preg_match('/combo/i',$p['category'].' '.$p['name'])&&(empty($clean['flavor'])||!in_array($clean['size']??'', ['16 oz','22 oz'], true)))throw new RuntimeException('Choose a fruit soda size and flavor.');if(preg_match('/milk tea/i',$p['category'].' '.$p['name'])&&!preg_match('/combo/i',$p['category'].' '.$p['name'])&&(!isset($clean['sweetness'])||empty($clean['size'])))throw new RuntimeException('Choose a milk tea size and sweetness level.');if(preg_match('/chicken wings/i',$p['category'].' '.$p['name'])&&(empty($clean['pieces'])||!in_array($clean['pieces'],['3 pieces','6 pieces','8 pieces','12 pieces'],true)||empty($clean['flavor'])||empty($clean['rice_type'])))throw new RuntimeException('Choose chicken pieces, flavor, and rice type.');if(preg_match('/rice meal|silog|with rice/i',$p['category'].' '.$p['name'])&&!preg_match('/chicken wings/i',$p['category'].' '.$p['name'])&&empty($clean['rice_type']))throw new RuntimeException('Choose Plain or Java rice.');if(preg_match('/combo/i',$p['category'].' '.$p['name'])&&empty($clean['side']))throw new RuntimeException('Choose fries or cheese sticks for the combo.');$base=(float)$p['price'];if(in_array($p['category'],['Milkshake','Fruit Soda'],true))$base=($clean['size']==='22 oz'?50.00:40.00);if(preg_match('/chicken wings/i',$p['category'].' '.$p['name']))$base=['3 pieces'=>108.00,'6 pieces'=>158.00,'8 pieces'=>198.00,'12 pieces'=>308.00][$clean['pieces']];$addon=0;if(!empty($clean['pearl']))$addon+=10;if(!empty($clean['nata'])&&preg_match('/milkshake|fruit soda/i',$p['category'].' '.$p['name']))$addon+=10;if(!empty($clean['add_egg']))$addon+=preg_match('/buldak/i',$p['category'].' '.$p['name'])?20:15;if(!empty($clean['add_cheese']))$addon+=10;if(!empty($clean['add_ham']))$addon+=15;if(!empty($clean['add_bacon']))$addon+=preg_match('/buldak/i',$p['category'].' '.$p['name'])?30:25;if(!empty($clean['add_seaweed']))$addon+=23;$unit=$base+$addon;$subtotal+=$unit*$qty;$validated[]=['product'=>$p,'qty'=>$qty,'custom'=>$clean,'unit'=>$unit];}$deliveryFee=0.00;$total=$subtotal+$deliveryFee;$code='MJK-'.date('ymd').'-'.strtoupper(bin2hex(random_bytes(3)));$s=$pdo->prepare("INSERT INTO orders(order_code,customer_id,order_type,delivery_address,subtotal,delivery_fee,total,status) VALUES(?,?,?,?,?,?,?,'Order Placed')");$s->execute([$code,$user['id'],$type,$type==='Delivery'?$address:null,$subtotal,$deliveryFee,$total]);$oid=(int)$pdo->lastInsertId();$is=$pdo->prepare('INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price,line_total,customizations) VALUES(?,?,?,?,?,?,?)');foreach($validated as $v)$is->execute([$oid,$v['product']['id'],$v['product']['name'],$v['qty'],$v['unit'],$v['unit']*$v['qty'],json_encode($v['custom'],JSON_UNESCAPED_UNICODE)]);$ps=$pdo->prepare('INSERT INTO payments(order_id,method,amount,status) VALUES(?,?,?,?)');$ps->execute([$oid,$method,$total,$method==='Cash'?'Pending':'Pending Verification']);$pdo->commit();json_out(['ok'=>true,'order_id'=>$oid,'order_code'=>$code,'total'=>$total,'payment_method'=>$method],201);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();json_out(['error'=>$e instanceof RuntimeException?$e->getMessage():'Unable to place order.'],422);}?>
+<?php
+/**
+ * Customer orders.
+ *
+ * GET  → the signed-in customer's orders, newest first
+ * POST → places an order
+ *
+ * The browser sends product ids, quantities and the customer's choices; it
+ * never sends prices. Everything is re-priced here from the current menu
+ * (api/pricing.php) inside a transaction, so a tampered cart cannot change what
+ * is charged and an unavailable item cannot be sold.
+ */
+require __DIR__ . '/config.php';
+
+$user   = require_login();
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+if ($method === 'GET') {
+    list_orders($pdo, $user);
+}
+if ($method === 'POST') {
+    create_order($pdo, $user);
+}
+json_out(['error' => 'Method not allowed.'], 405);
+
+/* ═══════════════════════════ GET ═══════════════════════════ */
+
+function list_orders(PDO $pdo, array $user): never
+{
+    $sql = <<<'SQL'
+        SELECT o.id, o.order_code, o.order_type, o.delivery_address, o.contact_number, o.notes,
+               o.subtotal, o.delivery_fee, o.total, o.status, o.created_at,
+               p.method AS payment_method, p.status AS payment_status, p.gateway_reference AS payment_reference,
+               GROUP_CONCAT(CONCAT(oi.product_name, ' × ', oi.quantity) ORDER BY oi.id SEPARATOR ', ') AS items_summary
+        FROM orders o
+        LEFT JOIN order_items oi ON oi.order_id = o.id
+        LEFT JOIN payments p ON p.order_id = o.id
+        WHERE o.customer_id = ?
+        GROUP BY o.id, p.id
+        ORDER BY o.id DESC
+        SQL;
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$user['id']]);
+    $orders = $stmt->fetchAll();
+
+    foreach ($orders as &$order) {
+        $order['id']            = (int) $order['id'];
+        $order['subtotal']      = (float) $order['subtotal'];
+        $order['delivery_fee']  = (float) $order['delivery_fee'];
+        $order['total']         = (float) $order['total'];
+        // The server decides whether "Submit payment details" may be offered.
+        $order['can_submit_payment'] = in_array($order['payment_method'], ONLINE_PAYMENT_METHODS, true)
+            && in_array((string) $order['payment_status'], ['Pending', 'Pending Verification', 'Failed'], true)
+            && $order['status'] !== 'Cancelled';
+    }
+    unset($order);
+
+    json_out(['orders' => $orders]);
+}
+
+/* ═══════════════════════════ POST ═══════════════════════════ */
+
+function create_order(PDO $pdo, array $user): never
+{
+    $data = body_json();
+
+    $items      = $data['items'] ?? [];
+    $orderType  = ($data['order_type'] ?? 'Pickup') === 'Delivery' ? 'Delivery' : 'Pickup';
+    $address    = trim((string) ($data['address'] ?? ''));
+    $contact    = trim((string) ($data['contact_number'] ?? ''));
+    $notes      = trim((string) ($data['notes'] ?? ''));
+    $payMethod  = (string) ($data['payment_method'] ?? 'Cash');
+
+    if (!is_array($items) || $items === []) {
+        json_out(['error' => 'Your cart is empty.'], 422);
+    }
+    if (count($items) > 50) {
+        json_out(['error' => 'Too many cart items — please order 50 lines or fewer.'], 422);
+    }
+    if (!in_array($payMethod, PAYMENT_METHOD_NAMES, true)) {
+        json_out(['error' => 'Select a valid payment method.'], 422);
+    }
+    if (mb_strlen($address) > 500) {
+        json_out(['error' => 'The delivery address is too long (500 characters max).'], 422);
+    }
+    if (mb_strlen($notes) > 300) {
+        json_out(['error' => 'Order notes are too long (300 characters max).'], 422);
+    }
+    if ($orderType === 'Delivery' && $address === '') {
+        json_out(['error' => 'Delivery address is required.'], 422);
+    }
+    if ($contact !== '' && !valid_contact_number($contact)) {
+        json_out(['error' => 'Enter a contact number with 7 to 15 digits.'], 422);
+    }
+    if ($orderType === 'Delivery' && $contact === '') {
+        json_out(['error' => 'A contact number is required for delivery.'], 422);
+    }
+
+    try {
+        $pdo->beginTransaction();
+
+        $validated = [];
+        $subtotal  = 0.0;
+        $issues    = [];
+
+        // FOR UPDATE keeps another order from selling the last of an item while
+        // this one is being priced.
+        $productStmt = $pdo->prepare('SELECT id, name, category, price FROM products WHERE id = ? AND is_available = 1 FOR UPDATE');
+
+        foreach ($items as $line) {
+            $productId = (int) ($line['product_id'] ?? 0);
+            $quantity  = (int) ($line['quantity'] ?? 0);
+            $custom    = $line['customizations'] ?? [];
+            if (!is_array($custom)) {
+                $custom = [];
+            }
+
+            if ($productId < 1 || $quantity < 1 || $quantity > 50) {
+                $issues[] = 'Invalid cart item.';
+                continue;
+            }
+
+            $productStmt->execute([$productId]);
+            $product = $productStmt->fetch();
+            if (!$product) {
+                $issues[] = 'A selected item is no longer available.';
+                continue;
+            }
+
+            $check = validate_customizations($product, $custom);
+            if (!$check['ok']) {
+                $issues[] = $product['name'] . ': ' . implode(' ', $check['errors']);
+                continue;
+            }
+
+            $lineTotal   = round($check['unit'] * $quantity, 2);
+            $subtotal    = round($subtotal + $lineTotal, 2);
+            $validated[] = [
+                'product' => $product,
+                'qty'     => $quantity,
+                'custom'  => $check['clean'],
+                'unit'    => $check['unit'],
+                'line'    => $lineTotal,
+            ];
+        }
+
+        if ($issues !== []) {
+            $issues = array_values(array_unique($issues));
+            $pdo->rollBack();
+            json_out(['error' => implode(' ', array_slice($issues, 0, 5)), 'issues' => $issues], 422);
+        }
+
+        $deliveryFee = delivery_fee_for($orderType);
+        $total       = round($subtotal + $deliveryFee, 2);
+
+        // Order code: MJK-YYMMDD-XXXXXXXX. Retried in the unlikely event of a clash.
+        $orderId = 0;
+        $code    = '';
+        $insertOrder = $pdo->prepare(
+            'INSERT INTO orders (order_code, customer_id, order_type, delivery_address, contact_number, notes,
+                                 subtotal, delivery_fee, total, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \'Order Placed\')'
+        );
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $candidate = 'MJK-' . date('ymd') . '-' . strtoupper(bin2hex(random_bytes(4)));
+            try {
+                $insertOrder->execute([
+                    $candidate,
+                    $user['id'],
+                    $orderType,
+                    $orderType === 'Delivery' ? $address : null,
+                    $contact !== '' ? $contact : null,
+                    $notes !== '' ? $notes : null,
+                    $subtotal,
+                    $deliveryFee,
+                    $total,
+                ]);
+                $code    = $candidate;
+                $orderId = (int) $pdo->lastInsertId();
+                break;
+            } catch (PDOException $e) {
+                $isDuplicateCode = ($e->errorInfo[1] ?? 0) === 1062;   // MySQL: duplicate entry
+                if (!$isDuplicateCode || $attempt === 3) {
+                    throw $e;
+                }
+            }
+        }
+        if ($orderId < 1) {
+            throw new RuntimeException('Could not reserve an order code.');
+        }
+
+        $insertItem = $pdo->prepare(
+            'INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, line_total, customizations)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        foreach ($validated as $line) {
+            $insertItem->execute([
+                $orderId,
+                $line['product']['id'],
+                $line['product']['name'],
+                $line['qty'],
+                $line['unit'],
+                $line['line'],
+                json_encode($line['custom'], JSON_UNESCAPED_UNICODE),
+            ]);
+        }
+
+        // One payment row per order. Cash stays 'Pending' until the shop marks it
+        // received; e-wallets wait in 'Pending Verification' for an admin.
+        $insertPayment = $pdo->prepare('INSERT INTO payments (order_id, method, amount, status) VALUES (?, ?, ?, ?)');
+        $insertPayment->execute([
+            $orderId,
+            $payMethod,
+            $total,
+            $payMethod === 'Cash' ? 'Pending' : 'Pending Verification',
+        ]);
+
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        json_out(['error' => $e instanceof RuntimeException ? $e->getMessage() : 'Unable to place order.'], 422);
+    }
+
+    json_out([
+        'ok'                 => true,
+        'order_id'           => $orderId,
+        'order_code'         => $code,
+        'subtotal'           => $subtotal,
+        'delivery_fee'       => $deliveryFee,
+        'total'              => $total,
+        'payment_method'     => $payMethod,
+        'payment_status'     => $payMethod === 'Cash' ? 'Pending' : 'Pending Verification',
+        'needs_payment_info' => $payMethod !== 'Cash',
+    ], 201);
+}
+
+/* ═══════════════════════════ helpers ═══════════════════════════ */
+
+/** Accepts 7–15 digits, optionally written with + ( ) - spaces or dots. */
+function valid_contact_number(string $value): bool
+{
+    if (mb_strlen($value) > 30 || !preg_match('/^[0-9+()\-.\s]+$/', $value)) {
+        return false;
+    }
+    $digits = preg_replace('/\D/', '', $value) ?? '';
+    return strlen($digits) >= 7 && strlen($digits) <= 15;
+}

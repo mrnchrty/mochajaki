@@ -1,37 +1,937 @@
-const API='../api';const $=id=>document.getElementById(id);const money=n=>'₱'+Number(n||0).toFixed(2);let products=[],cart=loadSavedCart(),user=null,activeCategory='All',pendingOrder=null,authReturnView='account';
-const drinkFlavors={Milkshake:['Choco Kisses','Cookies & Cream','Buko','Strawberry','Double Dutch','Melon','Bukopandan','Avocado','Black Forest','Mango','Ube Macapuno','Leche Flan'],'Fruit Soda':['Lychee Blue','Lemonade','Strawberry Green','Apple','Wintermelon','Blueberry']};
-function escapeHTML(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-async function api(path,options={}){const headers={...(options.headers||{})};if(!(options.body instanceof FormData))headers['Content-Type']='application/json';const r=await fetch(`${API}/${path}`,{credentials:'same-origin',...options,headers});let d;try{d=await r.json()}catch{throw new Error('Unexpected server response.')}if(!r.ok)throw new Error(d.error||'Request failed');return d}
-function showView(name){$('menu-pop').hidden=true;$('header-account').classList.toggle('active',name==='account'||name==='orders');document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==`view-${name}`);document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===name));if(name==='orders')loadOrders();if(name==='cart')renderCart();if(name==='account')refreshAccount();window.scrollTo({top:0,behavior:'smooth'})}
-function loadSavedCart(){try{return JSON.parse(localStorage.getItem('mochajaki_cart')||'[]')}catch{return []}}
-function saveCart(){try{localStorage.setItem('mochajaki_cart',JSON.stringify(cart))}catch{}}
-function toast(m){const t=document.createElement('div');t.className='cart-toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),1600)}
-let lastOrders=[];
-document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));document.querySelector('[data-scroll-menu]').onclick=()=>document.getElementById('menu').scrollIntoView({behavior:'smooth'});$('hdr-login').onclick=()=>{showView('account');$('login-email').focus()};$('hdr-signup').onclick=()=>{showView('account');$('reg-name').focus()};
-$('header-account').onclick=e=>{e.stopPropagation();const open=$('menu-pop').hidden;$('menu-pop').hidden=!open;$('header-account').setAttribute('aria-expanded',open)};
-document.addEventListener('click',e=>{if(!e.target.closest('#user-menu'))$('menu-pop').hidden=true});
-$('hdr-logout').onclick=()=>{$('menu-pop').hidden=true;$('logout').click()};
-$('brand-home').onclick=e=>{e.preventDefault();showView('menu')};
-function renderCategories(){const cats=['All',...new Set(products.map(p=>p.category))];$('categories').innerHTML=cats.map(c=>`<button class="category-chip ${c===activeCategory?'active':''}" data-cat="${escapeHTML(c)}">${escapeHTML(c)}</button>`).join('');$('categories').querySelectorAll('button').forEach(b=>b.onclick=()=>{activeCategory=b.dataset.cat;renderCategories();renderMenu()})}
-function renderMenu(){const q=$('search').value.trim().toLowerCase();const list=products.filter(p=>(activeCategory==='All'||p.category===activeCategory)&&(`${p.name} ${p.category} ${p.description||''}`).toLowerCase().includes(q));$('menu-grid').innerHTML=list.map(p=>`<article class="product-card"><div class="product-image"><img src="${escapeHTML(p.image_url||'')}" alt="${escapeHTML(p.name)}" loading="lazy" onerror="this.style.opacity='.12'"></div><div class="product-body"><h3>${escapeHTML(p.name)}</h3><p>${escapeHTML(p.description||'')}</p><div class="product-foot"><span class="price">${money(p.price)}</span><button class="add-button" ${Number(p.is_available)!==1?'disabled':''} onclick="openProduct(${Number(p.id)})">${Number(p.is_available)===1?'＋ Add':'Unavailable'}</button></div></div></article>`).join('')||'<p class="muted">No matching items.</p>'}
-async function loadMenu(){try{const d=await api('products.php');products=d.products;renderCategories();renderMenu()}catch(e){$('menu-grid').innerHTML=`<p class="muted">${escapeHTML(e.message)}</p>`}}
-function isDrink(p){return /milkshake|fruit soda|milk tea/i.test(`${p.category} ${p.name}`)}function isRice(p){return /rice meal|silog|with rice|chicken wings/i.test(`${p.category} ${p.name}`)}function isWings(p){return /chicken wings/i.test(`${p.category} ${p.name}`)}function isCombo(p){return /combo/i.test(`${p.category} ${p.name}`)}
-function openProduct(id){const p=products.find(x=>Number(x.id)===Number(id));if(!p)return;let fields='';const name=`${p.category} ${p.name}`;const drink=/milkshake|fruit soda|milk tea/i.test(name);if(/milkshake/i.test(name)&&!isCombo(p)){fields+=selectField('Size','size',['16 oz','22 oz'],true)+selectField('Flavor','flavor',drinkFlavors.Milkshake,true);fields+=`<label class="check-row"><input type="checkbox" name="pearl"> Add pearl (+₱10)</label><label class="check-row"><input type="checkbox" name="nata"> Add nata (+₱10)</label>`}else if(/fruit soda/i.test(name)&&!isCombo(p)){fields+=selectField('Size','size',['16 oz','22 oz'],true)+selectField('Flavor','flavor',drinkFlavors['Fruit Soda'],true)+`<label class="check-row"><input type="checkbox" name="nata"> Add nata (+₱10)</label>`}else if(/milk tea/i.test(name)&&!isCombo(p)){fields+=selectField('Flavor','flavor',drinkFlavors['Milk Tea'],true)+selectField('Sweetness level','sweetness',['0%','25%','50%','75%','100%'],true)}else if(isWings(p)){fields+=selectField('Chicken pieces','pieces',['3 pieces','6 pieces','8 pieces','12 pieces'],true)+selectField('Flavor','flavor',['Spicy Buffalo','Garlic Parmesan','Teriyaki','Sweet & Spicy','Hickory BBQ'],true)+selectField('Rice type','rice_type',['Plain','Java'],true)+`<label class="check-row"><input type="checkbox" name="extra_rice"> Add extra rice</label>`}else if(isRice(p)){fields+=selectField('Rice type','rice_type',['Plain','Java'],true)}if(isCombo(p)){fields+=selectField('Side choice','side',['Fries','6 pcs Cheese Stick'],true);if(/milkshake/i.test(p.name))fields+=selectField('Milkshake flavor','flavor',drinkFlavors.Milkshake,true);if(/fruit soda/i.test(p.name))fields+=selectField('Fruit soda flavor','flavor',drinkFlavors['Fruit Soda'],true)}if(/takoyaki/i.test(name))fields+=selectField('Variant','variant',['Ham','Cheese','Vegetable','Spam','Bacon','Crab'],true);if(/buldak/i.test(name))fields+=`<label class="check-row"><input type="checkbox" name="add_egg"> Add egg (+₱20)</label><label class="check-row"><input type="checkbox" name="add_bacon"> Add bacon (+₱30)</label><label class="check-row"><input type="checkbox" name="add_seaweed"> Add seaweed (+₱23)</label>`;if(/burger|sandwich/i.test(name)&&!/hotdog|footlong|hungarian/i.test(name))fields+=`<div class="option-note">Optional add-ons</div><label class="check-row"><input type="checkbox" name="add_egg"> Egg (+₱15)</label><label class="check-row"><input type="checkbox" name="add_cheese"> Cheese (+₱10)</label><label class="check-row"><input type="checkbox" name="add_ham"> Ham (+₱15)</label><label class="check-row"><input type="checkbox" name="add_bacon"> Bacon (+₱25)</label>`;fields+=`<label>Quantity<input class="modal-qty" type="number" name="quantity" value="1" min="1" max="50" required></label>`;$('modal-content').innerHTML=`<img class="modal-product-image" src="${escapeHTML(p.image_url||'')}" alt="${escapeHTML(p.name)}" onerror="this.style.display='none'"><span class="eyebrow">${escapeHTML(p.category)}</span><h2 id="modal-title">${escapeHTML(p.name)}</h2><p class="muted">${escapeHTML(p.description||'')}</p><div class="modal-price">${money(p.price)}</div><form id="custom-form">${fields}<button class="primary full">Add to cart</button></form>`;$('product-modal').hidden=false;$('custom-form').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target),custom={};for(const [k,v] of f.entries()){if(k==='quantity')continue;if(k.startsWith('add_')||['pearl','nata','extra_rice'].includes(k))custom[k]=true;else custom[k]=v}const quantity=Math.max(1,Math.min(50,Number(f.get('quantity')||1)));let addon=0;const drinkBase=(p.category==='Milkshake'||p.category==='Fruit Soda')&&custom.size==='22 oz'?50:(p.category==='Milkshake'||p.category==='Fruit Soda')&&custom.size==='16 oz'?40:isWings(p)?({'3 pieces':108,'6 pieces':158,'8 pieces':198,'12 pieces':308}[custom.pieces]||Number(p.price)):Number(p.price);const addonRates={pearl:10,nata:10,add_egg:/buldak/i.test(name)?20:15,add_cheese:10,add_ham:15,add_bacon:/buldak/i.test(name)?30:25,add_seaweed:23};Object.entries(addonRates).forEach(([k,v])=>{if(custom[k])addon+=v});if(custom.extra_rice)custom.extra_rice=true;cart.push({key:crypto.randomUUID(),id:Number(p.id),name:p.name,category:p.category,image_url:p.image_url,base_price:Number(p.price),price:drinkBase+addon,quantity,customizations:custom});saveCart();$('product-modal').hidden=true;renderCart();toast('Added to cart')}}
-function selectField(label,name,opts,required){opts=opts||[];return `<label>${label}<select name="${name}" ${required?'required':''}><option value="">Choose ${label.toLowerCase()}</option>${opts.map(x=>`<option value="${escapeHTML(x)}">${escapeHTML(x)}</option>`).join('')}</select></label>`}
-function customText(c){return Object.entries(c||{}).map(([k,v])=>{if(!v)return '';const labels={flavor:'Flavor',sweetness:'Sweetness',rice_type:'Rice',pieces:'Chicken',extra_rice:'Extra rice',pearl:'Pearl',nata:'Nata',side:'Side',variant:'Variant',add_egg:'Egg',add_cheese:'Cheese',add_ham:'Ham',add_bacon:'Bacon',add_seaweed:'Seaweed'};return `${labels[k]||k}: ${v===true?'Yes':v}`}).filter(Boolean).join(' · ')}
-function changeQty(key,delta){const item=cart.find(x=>x.key===key);if(!item)return;item.quantity=Math.max(1,Math.min(50,item.quantity+delta));saveCart();renderCart()}function removeCart(key){cart=cart.filter(x=>x.key!==key);saveCart();renderCart()}
-function subtotal(){return cart.reduce((s,i)=>s+i.price*i.quantity,0)}function fee(){return 0}
-function renderCart(){saveCart();$('cart-count').textContent=cart.reduce((s,i)=>s+i.quantity,0);$('cart-count-label').textContent=`${cart.reduce((s,i)=>s+i.quantity,0)} items`;$('cart-items').innerHTML=cart.length?cart.map(i=>`<div class="cart-row"><img class="cart-thumb" src="${escapeHTML(i.image_url||'')}" alt="" onerror="this.style.opacity='.1'"><div class="cart-info"><strong>${escapeHTML(i.name)}</strong><small>${escapeHTML(customText(i.customizations)||'Standard')}</small><div class="qty-controls"><button onclick="changeQty('${i.key}',-1)" aria-label="Decrease quantity">−</button><span>${i.quantity}</span><button onclick="changeQty('${i.key}',1)" aria-label="Increase quantity">+</button><button class="remove-button" onclick="removeCart('${i.key}')">Remove</button></div></div><div class="cart-price">${money(i.price*i.quantity)}</div></div>`).join(''):'<p class="muted">Your cart is empty. Browse the menu to add something delicious.</p>';$('cart-subtotal').textContent=money(subtotal());$('delivery-fee').textContent=money(fee());$('cart-total').textContent=money(subtotal()+fee());$('address-field').hidden=$('order-type').value!=='Delivery';$('online-payment-info').hidden=$('payment').value==='Cash'}
-$('order-type').onchange=renderCart;$('payment').onchange=renderCart;$('search').oninput=renderMenu;$('modal-close').onclick=()=>$('product-modal').hidden=true;$('product-modal').onclick=e=>{if(e.target===$('product-modal'))$('product-modal').hidden=true};$('payment-close').onclick=()=>$('payment-modal').hidden=true;
-async function refreshAccount(){try{const d=await api('me.php');user=d.user;const nm=(user.full_name||'M').trim(),ini=nm.charAt(0).toUpperCase();$('account-state').textContent='You are signed in.';$('profile-details').hidden=false;$('profile-details').innerHTML=`<div class="profile-avatar">${escapeHTML(ini)}</div><div><span class="eyebrow">ACCOUNT DETAILS</span><h2>${escapeHTML(user.full_name||'Customer')}</h2><p>${escapeHTML(user.email||'')}</p><p class="muted">${user.role==='admin'?'Administrator account':'Customer account'}</p></div>`;$('auth-grid').hidden=true;$('password-form').hidden=false;$('logout').hidden=false;$('pill-label').textContent=nm.split(' ')[0];$('pill-avatar').textContent=ini;$('guest-actions').hidden=true;$('user-menu').hidden=false;$('nav-orders').hidden=false;await loadOrders();renderStats()}catch{user=null;lastOrders=[];$('account-state').textContent='You are not signed in.';$('auth-grid').hidden=false;$('profile-details').hidden=true;$('profile-details').innerHTML='';$('password-form').hidden=true;$('account-stats').hidden=true;$('logout').hidden=true;$('guest-actions').hidden=false;$('user-menu').hidden=true;$('nav-orders').hidden=true;loadOrders()}}
-function renderStats(){const live=lastOrders.filter(o=>o.status!=='Cancelled'),active=live.filter(o=>o.status!=='Completed').length,spent=live.reduce((s,o)=>s+Number(o.total||0),0);$('account-stats').hidden=false;$('account-stats').innerHTML=`<div><b>${lastOrders.length}</b><span>Orders</span></div><div><b>${active}</b><span>In progress</span></div><div><b>${money(spent)}</b><span>Total spent</span></div>`}
-function afterAuth(msg){const back=authReturnView;authReturnView='account';refreshAccount().then(()=>{if(back!=='account')showView(back);toast(msg)})}
-$('login-form').onsubmit=async e=>{e.preventDefault();try{await api('login.php',{method:'POST',body:JSON.stringify({email:$('login-email').value,password:$('login-password').value})});$('auth-message').textContent='';e.target.reset();afterAuth('Welcome back!')}catch(err){$('auth-message').textContent=err.message}};
-$('register-form').onsubmit=async e=>{e.preventDefault();try{await api('register.php',{method:'POST',body:JSON.stringify({full_name:$('reg-name').value,email:$('reg-email').value,password:$('reg-password').value})});$('auth-message').textContent='';e.target.reset();afterAuth('Account created. Welcome to Mochajaki!')}catch(err){$('auth-message').textContent=err.message}};
-$('password-form').onsubmit=async e=>{e.preventDefault();const m=$('password-message');try{await api('change-password.php',{method:'POST',body:JSON.stringify({current_password:$('pw-current').value,new_password:$('pw-new').value})});e.target.reset();m.textContent='Password updated.'}catch(err){m.textContent=err.message}};
-$('logout').onclick=async()=>{try{await api('logout.php',{method:'POST',body:'{}'});authReturnView='account';await refreshAccount();$('auth-message').textContent='';toast('Signed out')}catch(e){$('auth-message').textContent=e.message}};
-async function loadOrders(){if(!user){$('orders-list').innerHTML='<div class="surface empty-state"><div class="empty-icon">🧾</div><h2>Log in to see your orders</h2><p class="muted">Track each order from preparation to pickup or delivery.</p><div class="empty-actions"><button class="primary" onclick="authReturnView=\'orders\';showView(\'account\')">Log in</button><button class="secondary-button" onclick="authReturnView=\'orders\';showView(\'account\');$(\'reg-name\').focus()">Create account</button></div></div>';return}try{const d=await api('orders.php');lastOrders=d.orders;$('orders-list').innerHTML=d.orders.length?d.orders.map(o=>`<article class="order-card"><div class="order-card-top"><div><h3>${escapeHTML(o.order_code)}</h3><p>${escapeHTML(o.created_at)} · ${escapeHTML(o.order_type)}</p></div><span class="status-pill">${escapeHTML(o.status)}</span></div><div class="order-card-top"><span class="muted">${escapeHTML(o.items_summary||'Order details')}</span><span class="order-total">${money(o.total)}</span></div><div class="order-details">Payment: ${escapeHTML(o.payment_method||'')} · ${escapeHTML(o.payment_status||'Pending')}${o.payment_reference?` · Reference: ${escapeHTML(o.payment_reference)}`:''}${o.delivery_address?`<br>Delivery address: ${escapeHTML(o.delivery_address)}`:''}</div>${o.payment_method!=='Cash'&&o.payment_status!=='Paid'&&o.status!=='Cancelled'?`<button class="secondary-button" onclick="openPaymentSubmission(${Number(o.id)},'${escapeHTML(o.payment_method)}')">Submit payment details</button>`:''}</article>`).join(''):'<div class="surface">You have not placed any orders yet.</div>'}catch(e){$('orders-list').innerHTML=`<div class="surface">${escapeHTML(e.message)}</div>`}}
-$('place-order').onclick=async()=>{if(!cart.length){$('checkout-message').textContent='Your cart is empty.';return}if(!user){$('checkout-message').textContent='';authReturnView='cart';showView('account');$('auth-message').textContent='Sign in or create an account to place your order.';return}if($('order-type').value==='Delivery'&&!$('address').value.trim()){$('checkout-message').textContent='Enter a delivery address.';return}const btn=$('place-order');btn.disabled=true;try{const d=await api('orders.php',{method:'POST',body:JSON.stringify({items:cart.map(i=>({product_id:i.id,quantity:i.quantity,customizations:i.customizations})),order_type:$('order-type').value,address:$('address').value,payment_method:$('payment').value})});cart=[];saveCart();renderCart();await loadOrders();showView('orders');if(d.payment_method!=='Cash'){pendingOrder=d;$('payment-order-id').value=d.order_id;$('payment-modal-copy').textContent=`Order ${d.order_code} created. Submit your ${d.payment_method} reference for verification.`;$('payment-modal').hidden=false}else{$('checkout-message').textContent=`Order ${d.order_code} placed successfully.`}}catch(e){$('checkout-message').textContent=e.message}finally{btn.disabled=false}};
-function openPaymentSubmission(id,method){$('payment-order-id').value=id;$('payment-modal-copy').textContent=`Submit your ${method} reference and optional screenshot. Payment remains pending until verified.`;$('payment-modal').hidden=false}
-$('payment-form').onsubmit=async e=>{e.preventDefault();const fd=new FormData();fd.append('order_id',$('payment-order-id').value);fd.append('reference',$('payment-reference').value.trim());const file=$('payment-screenshot').files[0];if(file)fd.append('screenshot',file);try{await api('payment-submit.php',{method:'POST',body:fd});$('payment-message').textContent='Payment details submitted for verification.';$('payment-reference').value='';$('payment-screenshot').value='';await loadOrders();setTimeout(()=>$('payment-modal').hidden=true,900)}catch(err){$('payment-message').textContent=err.message}};
-showView('menu');loadMenu();renderCart();refreshAccount();
+/* ════════════════════════════════════════════════════════════════════════
+   Mochajaki — customer site
+   ─────────────────────────────────────────────────────────────────────────
+   • No prices are hardcoded here. Every product arrives from api/products.php
+     together with its `option_spec` (sizes, flavours, add-ons and what each
+     one costs), and this file renders the order form and adds up the same
+     numbers. api/orders.php re-prices the order, so a tampered browser cannot
+     change what is charged — it can only ever disagree with itself.
+   • No inline onclick/onerror attributes: everything is handled with
+     delegated listeners so the pages can run under a strict Content Security
+     Policy (see .htaccess).
+   ════════════════════════════════════════════════════════════════════════ */
+'use strict';
+
+/* ═══════════════════════════ 1. Helpers ═══════════════════════════ */
+
+const API = '../api';
+const CART_KEY = 'mochajaki_cart';
+
+const $ = (id) => document.getElementById(id);
+const money = (value) => '₱' + Number(value || 0).toFixed(2);
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+/** Random row id. crypto.randomUUID() only exists on secure origins, and a
+ *  phone demo over http://192.168.x.x is not one, so fall back to random(). */
+const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID
+  ? crypto.randomUUID()
+  : 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+/** Small transient message at the bottom of the screen.
+ *  Pass 'error' for failures so the toast turns red instead of green. */
+function toast(message, variant = 'success') {
+  const node = document.createElement('div');
+  node.className = variant === 'error' ? 'cart-toast cart-toast-error' : 'cart-toast';
+  node.textContent = message;
+  document.body.appendChild(node);
+  setTimeout(() => node.remove(), 3200);
+}
+
+/* ═══════════════════════════ 2. State ═══════════════════════════ */
+
+const state = {
+  products: [],
+  deliveryFee: 0,
+  paymentInfo: {},
+  cart: loadCart(),
+  user: null,
+  orders: [],
+  activeCategory: 'All',
+  authReturnView: 'account',
+  modalProduct: null,
+};
+
+/* ═══════════════════════════ 3. API client ═══════════════════════════ */
+
+async function api(path, options = {}) {
+  const headers = { 'X-Requested-With': 'XMLHttpRequest', ...(options.headers || {}) };
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(`${API}/${path}`, { credentials: 'same-origin', ...options, headers });
+
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error('Unexpected server response.');
+  }
+  if (!response.ok) {
+    throw new Error(data.error || 'Request failed');
+  }
+  return data;
+}
+
+/* ═══════════════════════════ 4. Pricing (mirrors api/pricing.php) ═══════════════════════════ */
+
+function findProduct(id) {
+  return state.products.find((product) => Number(product.id) === Number(id));
+}
+
+/** Unit price = listed price + chosen size/pieces deltas + checked add-ons. */
+function unitPrice(product, customizations) {
+  const spec = product.option_spec || { fields: [], addons: [] };
+  let price = Number(product.price);
+
+  spec.fields.forEach((field) => {
+    const chosen = customizations ? customizations[field.key] : undefined;
+    if (chosen === undefined || chosen === null || chosen === '') return;
+    field.options.forEach((option) => {
+      if (String(option.value) === String(chosen)) price += Number(option.delta || 0);
+    });
+  });
+
+  spec.addons.forEach((addon) => {
+    if (customizations && customizations[addon.key]) price += Number(addon.price || 0);
+  });
+
+  return Math.round(price * 100) / 100;
+}
+
+/** "Rice type: Plain · Add pearl" — the same wording the admin panel shows. */
+function customizationsText(product, customizations) {
+  const spec = product ? (product.option_spec || { fields: [], addons: [] }) : { fields: [], addons: [] };
+  const labels = {};
+  spec.fields.concat(spec.addons).forEach((field) => { labels[field.key] = field.label; });
+
+  return Object.entries(customizations || {})
+    .filter(([, value]) => value !== null && value !== '' && value !== false)
+    .map(([key, value]) => {
+      const label = labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return value === true ? label : `${label}: ${value}`;
+    })
+    .join(' · ');
+}
+
+/* ═══════════════════════════ 5. Cart storage ═══════════════════════════ */
+
+/** Reads the saved cart and upgrades anything the old format left behind. */
+function loadCart() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((line) => line && Number(line.id) > 0)
+      .map((line) => ({
+        key: line.key || uid(),
+        id: Number(line.id),
+        quantity: Math.min(50, Math.max(1, Number(line.quantity) || 1)),
+        customizations: (line.customizations && typeof line.customizations === 'object') ? line.customizations : {},
+        unavailable: false,
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function saveCart() {
+  try {
+    localStorage.setItem(CART_KEY, JSON.stringify(state.cart.map(({ key, id, quantity, customizations }) => (
+      { key, id, quantity, customizations }
+    ))));
+  } catch {
+    /* private browsing / quota — the cart simply will not survive a reload */
+  }
+}
+
+/**
+ * Re-checks the saved cart against the live menu: prices may have changed and
+ * items may have been switched off since they were added (the old version kept
+ * yesterday's price and only failed at checkout).
+ */
+function refreshCartAgainstMenu() {
+  let priceChanged = false;
+
+  state.cart.forEach((line) => {
+    const product = findProduct(line.id);
+    if (!product || Number(product.is_available) !== 1) {
+      line.unavailable = true;
+      return;
+    }
+    line.unavailable = false;
+
+    const current = unitPrice(product, line.customizations);
+    if (line.unitPrice !== undefined && line.unitPrice !== current) {
+      priceChanged = true;
+    }
+    line.unitPrice = current;
+  });
+
+  if (priceChanged) {
+    toast('Some prices were updated since you added them — the cart now shows current prices.');
+  }
+}
+
+/* ═══════════════════════════ 6. Views ═══════════════════════════ */
+
+function showView(name) {
+  $('menu-pop').hidden = true;
+  $('header-account').classList.toggle('active', name === 'account' || name === 'orders');
+  document.querySelectorAll('.view').forEach((view) => { view.hidden = view.id !== `view-${name}`; });
+  document.querySelectorAll('[data-view]').forEach((button) => (
+    button.classList.toggle('active', button.dataset.view === name)
+  ));
+
+  if (name === 'cart') renderCart();
+  if (name === 'orders') loadOrders();
+  if (name === 'account') refreshAccount();
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ═══════════════════════════ 7. Menu ═══════════════════════════ */
+
+async function loadMenu() {
+  try {
+    const data = await api('products.php');
+    state.products = data.products.map((product) => ({
+      ...product,
+      price: Number(product.price),
+      is_available: Number(product.is_available),
+    }));
+    state.deliveryFee = Number(data.delivery_fee || 0);
+    state.paymentInfo = data.payment || {};
+    refreshCartAgainstMenu();
+    renderCategories();
+    renderMenu();
+    renderCart();
+    renderPaymentInfo();
+  } catch (error) {
+    $('menu-grid').innerHTML = `<p class="muted">${esc(error.message)}</p>`;
+  }
+}
+
+function renderCategories() {
+  const categories = ['All', ...new Set(state.products.map((product) => product.category))];
+  $('categories').innerHTML = categories.map((category) => `
+    <button class="category-chip ${category === state.activeCategory ? 'active' : ''}"
+            data-action="pick-category" data-category="${esc(category)}" type="button">${esc(category)}</button>
+  `).join('');
+}
+
+function renderMenu() {
+  const query = $('search').value.trim().toLowerCase();
+  const list = state.products.filter((product) => (
+    (state.activeCategory === 'All' || product.category === state.activeCategory)
+    && `${product.name} ${product.category} ${product.description || ''}`.toLowerCase().includes(query)
+  ));
+
+  $('menu-grid').innerHTML = list.map((product) => `
+    <article class="product-card">
+      <div class="product-image">
+        <img alt="${esc(product.name)}" loading="lazy" src="${esc(product.image_url || '')}"/>
+      </div>
+      <div class="product-body">
+        <h3>${esc(product.name)}</h3>
+        <p>${esc(product.description || '')}</p>
+        <div class="product-foot">
+          <span class="price">${money(product.price)}</span>
+          <button class="add-button" ${product.is_available === 1 ? '' : 'disabled'}
+                  data-action="open-product" data-product="${product.id}" type="button">
+            ${product.is_available === 1 ? '＋ Add' : 'Unavailable'}
+          </button>
+        </div>
+      </div>
+    </article>
+  `).join('') || '<p class="muted">No matching items.</p>';
+}
+
+/* ═══════════════════════════ 8. Product options modal ═══════════════════════════ */
+
+function openProductModal(productId) {
+  const product = findProduct(productId);
+  if (!product) return;
+
+  state.modalProduct = product;
+  const spec = product.option_spec || { fields: [], addons: [] };
+
+  const fields = spec.fields.map((field) => `
+    <label>${esc(field.label)}
+      <select name="${esc(field.key)}" data-spec-field="${esc(field.key)}" ${field.required ? 'required' : ''}>
+        <option value="">Choose ${esc(field.label.toLowerCase())}</option>
+        ${field.options.map((option) => `
+          <option value="${esc(option.value)}" data-delta="${Number(option.delta || 0)}">
+            ${esc(option.value)}${Number(option.delta) ? ` (+${money(option.delta)})` : ''}
+          </option>
+        `).join('')}
+      </select>
+    </label>
+  `).join('');
+
+  const addons = spec.addons.map((addon) => `
+    <label class="check-row">
+      <input name="${esc(addon.key)}" data-spec-addon="${esc(addon.key)}" data-price="${Number(addon.price || 0)}" type="checkbox"/>
+      ${esc(addon.label)}${Number(addon.price) ? ` (+${money(addon.price)})` : ''}
+    </label>
+  `).join('');
+
+  const addonsBlock = addons
+    ? `<div class="option-note">Optional add-ons</div>${addons}`
+    : '';
+
+  $('modal-content').innerHTML = `
+    <img class="modal-product-image" alt="${esc(product.name)}" src="${esc(product.image_url || '')}"/>
+    <span class="eyebrow">${esc(product.category)}</span>
+    <h2 id="modal-title">${esc(product.name)}</h2>
+    <p class="muted">${esc(product.description || '')}</p>
+    <p class="modal-price"><span id="modal-price">${money(product.price)}</span> <small id="modal-price-note" class="muted"></small></p>
+    <form id="custom-form">
+      ${fields}
+      ${addonsBlock}
+      <label>Quantity<input class="modal-qty" max="50" min="1" name="quantity" required="" type="number" value="1"/></label>
+      <button class="primary full" type="submit">Add to cart</button>
+    </form>
+  `;
+
+  $('product-modal').hidden = false;
+  updateModalPrice();
+}
+
+/** Recomputes the live "price each" line while the customer picks options. */
+function updateModalPrice() {
+  const product = state.modalProduct;
+  const form = $('custom-form');
+  if (!product || !form) return;
+
+  const customizations = readCustomForm(form, product);
+  const price = unitPrice(product, customizations);
+  const quantity = Math.max(1, Math.min(50, Number(form.elements.quantity?.value) || 1));
+
+  $('modal-price').textContent = money(price);
+  $('modal-price-note').textContent = Number(quantity) > 1
+    ? `each · ${quantity} × ${money(price)} = ${money(price * quantity)}`
+    : 'each';
+}
+
+/** Reads only the options this product actually offers. */
+function readCustomForm(form, product) {
+  const spec = product.option_spec || { fields: [], addons: [] };
+  const customizations = {};
+
+  spec.fields.forEach((field) => {
+    const control = form.elements[field.key];
+    if (control && control.value !== '') customizations[field.key] = control.value;
+  });
+  spec.addons.forEach((addon) => {
+    const control = form.elements[addon.key];
+    if (control && control.checked) customizations[addon.key] = true;
+  });
+
+  return customizations;
+}
+
+function addToCart(form) {
+  const product = state.modalProduct;
+  if (!product) return;
+
+  const quantity = Math.max(1, Math.min(50, Number(form.elements.quantity?.value) || 1));
+  const customizations = readCustomForm(form, product);
+
+  state.cart.push({
+    key: uid(),
+    id: Number(product.id),
+    quantity,
+    customizations,
+    unitPrice: unitPrice(product, customizations),
+    unavailable: false,
+  });
+
+  saveCart();
+  renderCart();
+  closeModal('product-modal');
+  toast(`${product.name} added to your cart`);
+}
+
+/* ═══════════════════════════ 9. Cart ═══════════════════════════ */
+
+function cartCount() {
+  return state.cart.reduce((sum, line) => sum + line.quantity, 0);
+}
+
+function cartSubtotal() {
+  return state.cart.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+}
+
+/** The delivery fee only applies to Delivery orders (it used to hit Pickup too). */
+function cartDeliveryFee() {
+  return $('order-type').value === 'Delivery' ? state.deliveryFee : 0;
+}
+
+function renderCart() {
+  saveCart();
+
+  const count = cartCount();
+  $('cart-count').textContent = count;
+  $('cart-count-label').textContent = `${count} item${count === 1 ? '' : 's'}`;
+
+  if (state.cart.length === 0) {
+    $('cart-items').innerHTML = '<p class="muted">Your cart is empty. Browse the menu to add something delicious.</p>';
+  } else {
+    const unavailable = state.cart.filter((line) => line.unavailable).length;
+    const notice = unavailable
+      ? `<div class="cart-warning">
+           ${unavailable} item${unavailable === 1 ? ' is' : 's are'} no longer available.
+           <button class="secondary-button" data-action="remove-unavailable" type="button">Remove them</button>
+         </div>`
+      : '';
+
+    $('cart-items').innerHTML = notice + state.cart.map((line) => {
+      const product = findProduct(line.id);
+      const name = product ? product.name : 'Item no longer on the menu';
+      const options = customizationsText(product, line.customizations) || 'Standard';
+      const total = line.unitPrice * line.quantity;
+
+      return `
+        <div class="cart-row ${line.unavailable ? 'cart-row-unavailable' : ''}">
+          <img alt="" class="cart-thumb" src="${esc(product ? (product.image_url || '') : '')}"/>
+          <div class="cart-info">
+            <strong>${esc(name)}</strong>
+            <small>${esc(options)}</small>
+            ${line.unavailable ? '<small class="cart-unavailable-note">Unavailable — please remove</small>' : ''}
+            <div class="qty-controls">
+              <button aria-label="Decrease quantity" data-action="qty-down" data-key="${esc(line.key)}" type="button">−</button>
+              <span>${line.quantity}</span>
+              <button aria-label="Increase quantity" data-action="qty-up" data-key="${esc(line.key)}" type="button">+</button>
+              <button class="remove-button" data-action="remove-line" data-key="${esc(line.key)}" type="button">Remove</button>
+            </div>
+          </div>
+          <div class="cart-price">${money(total)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  const subtotal = cartSubtotal();
+  const fee = cartDeliveryFee();
+
+  $('delivery-fee-label').textContent = $('order-type').value === 'Delivery'
+    ? 'Delivery fee'
+    : 'Delivery fee (pickup)';
+  $('cart-subtotal').textContent = money(subtotal);
+  $('delivery-fee').textContent = money(fee);
+  $('cart-total').textContent = money(subtotal + fee);
+
+  $('address-field').hidden = $('order-type').value !== 'Delivery';
+  $('contact-field').hidden = $('order-type').value !== 'Delivery';
+  $('online-payment-info').hidden = $('payment').value === 'Cash';
+  $('place-order').disabled = state.cart.length === 0 || state.cart.some((line) => line.unavailable);
+
+  renderPaymentInfo();
+}
+
+function changeQuantity(key, delta) {
+  const line = state.cart.find((item) => item.key === key);
+  if (!line) return;
+  line.quantity = Math.max(1, Math.min(50, line.quantity + delta));
+  renderCart();
+}
+
+function removeLine(key) {
+  state.cart = state.cart.filter((line) => line.key !== key);
+  renderCart();
+}
+
+/* ═══════════════════════════ 10. Payment details ═══════════════════════════ */
+
+/**
+ * Shows the QR code of the method the customer picked. If the shop has not
+ * installed an image (assets/payments/*.png) and no account label is set, the
+ * customer is told to ask the store instead of seeing an empty box.
+ */
+function renderPaymentInfo() {
+  const method = $('payment').value;
+  const row = $('qr-row');
+  const note = $('payment-note');
+
+  if (method === 'Cash') {
+    row.hidden = true;
+    return;
+  }
+
+  const info = state.paymentInfo[method] || {};
+  row.hidden = false;
+  $('qr-instructions').textContent = `Scan the ${method} QR code, or use the account details below, then submit your reference number after placing the order.`;
+  row.innerHTML = `<div><b>${esc(method)} QR</b><img alt="${esc(method)} QR code" id="qr-image" src="${esc(info.qr || '')}"/></div>`;
+
+  // Plain text only (textContent), so shop-configured text can never inject HTML.
+  const fallback = info.label
+    ? `Send the payment to ${info.label}. `
+    : `The ${method} QR code is not installed yet — please ask the store for the account details. `;
+  note.textContent = `${fallback}Payment stays pending until an administrator verifies it.`;
+
+  const image = $('qr-image');
+  if (image) {
+    // No QR image installed yet: hide the empty box and say what to do instead.
+    image.addEventListener('error', () => {
+      row.hidden = true;
+      $('qr-instructions').textContent = fallback.trim();
+    });
+  }
+}
+
+function openPaymentModal(orderId, method, orderCode) {
+  $('payment-order-id').value = orderId;
+  $('payment-modal-copy').textContent = orderCode
+    ? `Order ${orderCode} created. Submit your ${method} reference for verification.`
+    : `Submit your ${method} reference and optional screenshot. Payment stays pending until it is verified.`;
+  $('payment-message').textContent = '';
+  $('payment-modal').hidden = false;
+  $('payment-reference').focus();
+}
+
+/* ═══════════════════════════ 11. Checkout ═══════════════════════════ */
+
+async function placeOrder() {
+  const message = $('checkout-message');
+  message.textContent = '';
+
+  if (state.cart.length === 0) {
+    message.textContent = 'Your cart is empty.';
+    return;
+  }
+  if (state.cart.some((line) => line.unavailable)) {
+    message.textContent = 'Remove the unavailable items before placing your order.';
+    return;
+  }
+  if (!state.user) {
+    state.authReturnView = 'cart';
+    showView('account');
+    $('auth-message').textContent = 'Sign in or create an account to place your order.';
+    return;
+  }
+
+  const orderType = $('order-type').value;
+  const address = $('address').value.trim();
+  const contact = $('contact-number').value.trim();
+
+  if (orderType === 'Delivery' && address === '') {
+    message.textContent = 'Enter a delivery address.';
+    return;
+  }
+  if (orderType === 'Delivery' && contact === '') {
+    message.textContent = 'Enter a contact number so the rider can reach you.';
+    return;
+  }
+
+  const button = $('place-order');
+  button.disabled = true;
+  message.textContent = 'Placing your order…';
+
+  try {
+    const result = await api('orders.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        items: state.cart.map((line) => ({
+          product_id: line.id,
+          quantity: line.quantity,
+          customizations: line.customizations,
+        })),
+        order_type: orderType,
+        address,
+        contact_number: contact,
+        notes: $('order-notes').value.trim(),
+        payment_method: $('payment').value,
+      }),
+    });
+
+    state.cart = [];
+    saveCart();
+    renderCart();
+    await loadOrders();
+    showView('orders');
+
+    // The server's total is the authoritative one — show it, not the cart guess.
+    $('orders-message').textContent = `Order ${result.order_code} placed · total ${money(result.total)}.`;
+    toast(`Order ${result.order_code} placed · ${money(result.total)}`);
+
+    if (result.needs_payment_info) {
+      openPaymentModal(result.order_id, result.payment_method, result.order_code);
+    }
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/* ═══════════════════════════ 12. Orders ═══════════════════════════ */
+
+async function loadOrders() {
+  if (!state.user) {
+    $('orders-list').innerHTML = `
+      <div class="surface empty-state">
+        <div class="empty-icon">🧾</div>
+        <h2>Log in to see your orders</h2>
+        <p class="muted">Track each order from preparation to pickup or delivery.</p>
+        <div class="empty-actions">
+          <button class="primary" data-action="sign-in-to-order" type="button">Log in</button>
+          <button class="secondary-button" data-action="sign-up-to-order" type="button">Create account</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  try {
+    const data = await api('orders.php');
+    state.orders = data.orders;
+    renderOrders();
+    renderAccountStats();
+  } catch (error) {
+    $('orders-list').innerHTML = `<div class="surface">${esc(error.message)}</div>`;
+  }
+}
+
+function renderOrders() {
+  if (state.orders.length === 0) {
+    $('orders-list').innerHTML = '<div class="surface">You have not placed any orders yet.</div>';
+    return;
+  }
+
+  $('orders-list').innerHTML = state.orders.map((order) => `
+    <article class="order-card">
+      <div class="order-card-top">
+        <div>
+          <h3>${esc(order.order_code)}</h3>
+          <p>${esc(order.created_at)} · ${esc(order.order_type)}</p>
+        </div>
+        <span class="status-pill">${esc(order.status)}</span>
+      </div>
+      <div class="order-card-top">
+        <span class="muted">${esc(order.items_summary || 'Order details')}</span>
+        <span class="order-total">${money(order.total)}</span>
+      </div>
+      <div class="order-details">
+        Payment: ${esc(order.payment_method || '')} · ${esc(order.payment_status || 'Pending')}
+        ${order.payment_reference ? ` · Reference: ${esc(order.payment_reference)}` : ''}
+        ${order.delivery_address ? `<br>Delivery address: ${esc(order.delivery_address)}` : ''}
+        ${order.contact_number ? `<br>Contact: ${esc(order.contact_number)}` : ''}
+        ${order.notes ? `<br>Notes: ${esc(order.notes)}` : ''}
+        <br>Subtotal ${money(order.subtotal)} · Delivery fee ${money(order.delivery_fee)}
+      </div>
+      ${order.can_submit_payment ? `
+        <button class="secondary-button" data-action="open-payment"
+                data-order="${Number(order.id)}" data-method="${esc(order.payment_method)}"
+                data-code="${esc(order.order_code)}" type="button">Submit payment details</button>` : ''}
+    </article>
+  `).join('');
+}
+
+/* ═══════════════════════════ 13. Account ═══════════════════════════ */
+
+async function refreshAccount() {
+  try {
+    const data = await api('me.php');
+    state.user = data.user;
+    renderAccount();
+  } catch {
+    // 401 simply means "nobody is signed in" — show the guest state.
+    state.user = null;
+    state.orders = [];
+    renderAccount();
+  }
+  await loadOrders();
+}
+
+function renderAccount() {
+  const user = state.user;
+
+  if (!user) {
+    $('account-state').textContent = 'You are not signed in.';
+    $('auth-grid').hidden = false;
+    $('profile-details').hidden = true;
+    $('profile-details').innerHTML = '';
+    $('password-form').hidden = true;
+    $('account-stats').hidden = true;
+    $('logout').hidden = true;
+    $('guest-actions').hidden = false;
+    $('user-menu').hidden = true;
+    $('nav-orders').hidden = true;
+    return;
+  }
+
+  const name = String(user.full_name || 'Customer').trim();
+  const initial = name.charAt(0).toUpperCase();
+
+  $('account-state').textContent = 'You are signed in.';
+  $('profile-details').hidden = false;
+  $('profile-details').innerHTML = `
+    <div class="profile-avatar">${esc(initial)}</div>
+    <div>
+      <span class="eyebrow">ACCOUNT DETAILS</span>
+      <h2>${esc(name)}</h2>
+      <p>${esc(user.email || '')}</p>
+      <p class="muted">${user.role === 'admin' ? 'Administrator account' : 'Customer account'}</p>
+    </div>`;
+  $('auth-grid').hidden = true;
+  $('password-form').hidden = false;
+  $('logout').hidden = false;
+  $('pill-label').textContent = name.split(' ')[0];
+  $('pill-avatar').textContent = initial;
+  $('guest-actions').hidden = true;
+  $('user-menu').hidden = false;
+  $('nav-orders').hidden = false;
+}
+
+function renderAccountStats() {
+  const live = state.orders.filter((order) => order.status !== 'Cancelled');
+  const active = live.filter((order) => order.status !== 'Completed').length;
+  const ordered = live.reduce((sum, order) => sum + Number(order.total || 0), 0);
+
+  $('account-stats').hidden = false;
+  $('account-stats').innerHTML = `
+    <div><b>${state.orders.length}</b><span>Orders</span></div>
+    <div><b>${active}</b><span>In progress</span></div>
+    <div><b>${money(ordered)}</b><span>Total ordered</span></div>`;
+}
+
+/** Returns to the view the customer was on before they were asked to sign in. */
+function afterAuth(message) {
+  const back = state.authReturnView;
+  state.authReturnView = 'account';
+  refreshAccount().then(() => {
+    if (back !== 'account') showView(back);
+    toast(message);
+  });
+}
+
+/* ═══════════════════════════ 14. Modals ═══════════════════════════ */
+
+function closeModal(id) {
+  $(id).hidden = true;
+}
+
+function closeOpenModals() {
+  ['product-modal', 'payment-modal'].forEach((id) => { if (!$(id).hidden) $(id).hidden = true; });
+}
+
+/* ═══════════════════════════ 15. Events (delegated) ═══════════════════════════ */
+
+const actions = {
+  'scroll-menu': () => document.getElementById('menu').scrollIntoView({ behavior: 'smooth' }),
+  'scroll-top': (button, event) => {
+    event.preventDefault();
+    showView('menu');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  },
+  'focus-login': () => { showView('account'); $('login-email').focus(); },
+  'focus-register': () => { showView('account'); $('reg-name').focus(); },
+  'sign-in-to-order': () => { state.authReturnView = 'orders'; showView('account'); $('login-email').focus(); },
+  'sign-up-to-order': () => { state.authReturnView = 'orders'; showView('account'); $('reg-name').focus(); },
+  'pick-category': (button) => {
+    state.activeCategory = button.dataset.category;
+    renderCategories();
+    renderMenu();
+  },
+  'open-product': (button) => openProductModal(button.dataset.product),
+  'qty-up': (button) => changeQuantity(button.dataset.key, 1),
+  'qty-down': (button) => changeQuantity(button.dataset.key, -1),
+  'remove-line': (button) => removeLine(button.dataset.key),
+  'remove-unavailable': () => {
+    state.cart = state.cart.filter((line) => !line.unavailable);
+    renderCart();
+  },
+  'place-order': () => placeOrder(),
+  'open-payment': (button) => openPaymentModal(
+    Number(button.dataset.order),
+    button.dataset.method,
+    button.dataset.code
+  ),
+  logout: () => signOut(),
+};
+
+document.addEventListener('click', (event) => {
+  const viewButton = event.target.closest('[data-view]');
+  if (viewButton) {
+    showView(viewButton.dataset.view);
+    return;
+  }
+
+  const actionButton = event.target.closest('[data-action]');
+  if (actionButton) {
+    const handler = actions[actionButton.dataset.action];
+    if (handler) handler(actionButton, event);
+    return;
+  }
+
+  const closer = event.target.closest('[data-close-modal]');
+  if (closer && (closer.classList.contains('modal-close') || closer === event.target)) {
+    closeModal(closer.dataset.closeModal);
+    return;
+  }
+
+  // Clicking anywhere outside the account menu closes it.
+  if (!event.target.closest('#user-menu')) $('menu-pop').hidden = true;
+});
+
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+
+  if (form.id === 'custom-form') {
+    event.preventDefault();
+    addToCart(form);
+    return;
+  }
+  if (form.id === 'login-form') {
+    event.preventDefault();
+    submitLogin(form);
+    return;
+  }
+  if (form.id === 'register-form') {
+    event.preventDefault();
+    submitRegister(form);
+    return;
+  }
+  if (form.id === 'password-form') {
+    event.preventDefault();
+    submitPasswordChange(form);
+    return;
+  }
+  if (form.id === 'payment-form') {
+    event.preventDefault();
+    submitPaymentDetails(form);
+  }
+});
+
+// Live price while choosing options, and the payment QR after switching method.
+document.addEventListener('change', (event) => {
+  if (event.target.closest('#custom-form')) updateModalPrice();
+  if (event.target.id === 'order-type' || event.target.id === 'payment') renderCart();
+});
+document.addEventListener('input', (event) => {
+  if (event.target.closest('#custom-form')) updateModalPrice();
+  if (event.target.id === 'search') renderMenu();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    closeOpenModals();
+    $('menu-pop').hidden = true;
+  }
+});
+
+/** Pictures that fail to load fade out instead of showing a broken icon. */
+document.addEventListener('error', (event) => {
+  if (event.target instanceof HTMLImageElement) event.target.classList.add('img-broken');
+}, true);
+
+$('header-account').addEventListener('click', (event) => {
+  event.stopPropagation();
+  const willOpen = $('menu-pop').hidden;
+  $('menu-pop').hidden = !willOpen;
+  $('header-account').setAttribute('aria-expanded', String(willOpen));
+});
+
+/* ═══════════════════════════ 16. Form handlers ═══════════════════════════ */
+
+async function submitLogin(form) {
+  const message = $('auth-message');
+  message.textContent = '';
+  try {
+    await api('login.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: $('login-email').value,
+        password: $('login-password').value,
+      }),
+    });
+    form.reset();
+    afterAuth('Welcome back!');
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+async function submitRegister(form) {
+  const message = $('auth-message');
+  message.textContent = '';
+  try {
+    await api('register.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        full_name: $('reg-name').value,
+        email: $('reg-email').value,
+        password: $('reg-password').value,
+      }),
+    });
+    form.reset();
+    afterAuth('Account created. Welcome to Mochajaki!');
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+async function submitPasswordChange(form) {
+  const message = $('password-message');
+  message.textContent = '';
+  try {
+    await api('change-password.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        current_password: $('pw-current').value,
+        new_password: $('pw-new').value,
+      }),
+    });
+    form.reset();
+    message.textContent = 'Password updated.';
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+async function signOut() {
+  $('menu-pop').hidden = true;
+  try {
+    await api('logout.php', { method: 'POST', body: '{}' });
+    state.user = null;
+    state.orders = [];
+    state.authReturnView = 'account';
+    renderAccount();
+    await loadOrders();
+    toast('Signed out');
+  } catch (error) {
+    $('auth-message').textContent = error.message;
+  }
+}
+
+async function submitPaymentDetails(form) {
+  const message = $('payment-message');
+  message.textContent = '';
+
+  const payload = new FormData();
+  payload.append('order_id', $('payment-order-id').value);
+  payload.append('reference', $('payment-reference').value.trim());
+  const file = $('payment-screenshot').files[0];
+  if (file) payload.append('screenshot', file);
+
+  try {
+    await api('payment-submit.php', { method: 'POST', body: payload });
+    form.reset();
+    message.textContent = 'Payment details submitted for verification.';
+    await loadOrders();
+    setTimeout(() => closeModal('payment-modal'), 1200);
+  } catch (error) {
+    message.textContent = error.message;
+  }
+}
+
+/* ═══════════════════════════ 17. Boot ═══════════════════════════ */
+
+(async function boot() {
+  renderCart();
+  loadMenu();
+  await refreshAccount();
+  showView('menu');
+})();

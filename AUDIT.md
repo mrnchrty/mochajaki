@@ -225,3 +225,61 @@ No `Cache-Control: no-store` on session-bearing JSON (`me.php`, `orders.php`), s
 8. **F1** document PHP ≥ 8.1 (or drop `:never`).
 9. **D1** collapse the N+1 in `admin-orders.php`.
 10. **B5, B7, B4, E1–E11** clean-up pass on the option matrix, free "extra rice", dead code/CSS and messaging.
+
+---
+
+# Resolution log
+
+Everything above has since been fixed; this section records **how** each item
+was closed so the fixes can be checked. The code was rewritten in a readable,
+commented style (multi-line PHP/JS, no behaviour changes beyond the fixes
+themselves); the archive `mochajaki-system-improved.zip` is untouched.
+
+## What was changed
+
+| Area | Files | What changed |
+|---|---|---|
+| Money, one source of truth | **new** `api/pricing.php` | All option prices, flavour lists, the delivery fee and the receipt text live in one tested file. `api/orders.php` charges with `price_for()`; `api/products.php` sends the same spec to the browser. Fixes **A4**, **B2**, **B4-B7**, **F3**. |
+| Order/payment lifecycle | `api/orders.php`, `api/payment-submit.php`, `api/admin-payments.php` | Cash orders can be recorded as Paid; GCash/Maya need a reference and go to *Pending Verification*; a **Paid** payment can no longer be re-submitted by the customer; Refunded is reachable (Paid → Refunded); every transition stamps `verified_by`/`verified_at`. Fixes **A5**, **B1**, **B12**, **E5**. |
+| Validation | `api/admin-products.php`, `api/orders.php`, `api/register.php`, `api/change-password.php` | Length/format limits on names, categories, addresses, notes, contact numbers and passwords; friendly 422 messages instead of PDOExceptions and HTTP 500. Fixes **A6**, **A7**, **C5**. |
+| Sessions & request security | `api/config.php`, **new** `api/admin-login.php`/`admin-logout.php`/`admin-me.php`, `.htaccess` | Separate `mj_customer`/`mj_admin` sessions chosen by endpoint name (never by a request header); every write must carry `X-Requested-With: XMLHttpRequest` and a same-host Origin/Referer; `no-store` + `nosniff` headers; CSP with `script-src 'self'`. Fixes **C3**, **C4**, **C6**. |
+| Screenshots | `assets/payments/uploads/.htaccess`, **new** `api/admin-payment-proof.php` | The uploads folder denies direct access and lists nothing; admins stream an image through a session-checked endpoint that re-validates the stored path. Fixes **C1**. |
+| Sign-in throttling | `api/config.php` (+ `login_attempts` table), `api/login.php`, `api/register.php`, `api/change-password.php` | 8 failures per 15 minutes per e-mail + IP, and one bcrypt round is spent even for unknown addresses, so timing no longer reveals which accounts exist. Fixes **C2**, **C7**. |
+| Admin dashboard | `admin/admin.js`, `admin/index.html` | Session expiry returns to the sign-in screen (401/403 aware); no more "needs attention" double counting; sales count only non-cancelled **paid** orders; verification trail is shown; delete/toggle/edit buttons exist; the customer table drills into that customer's orders; hidden items are listed via the admin endpoint. Fixes **A3**, **B8**, **E3**, **E4**, **E6**, **E7**, **E9**. |
+| N+1 queries | `api/admin-orders.php` | Orders, their line counts and the best sellers come from single aggregate queries. Fixes **D1**. |
+| Docs | `README.md`, `database.sql`, `assets/payments/*` | PHP ≥ 8.1 + mbstring + fileinfo + MySQL 5.7 stated, utf8mb4 import command, delivery fee/option prices point at `api/pricing.php`, uploads folder is not web-served, `tests/pricing.test.php` documents itself. Fixes **F1**, **F2**, **F4**, **F5**, **F7**. |
+
+## Verification actually run
+
+| Check | How | Result |
+|---|---|---|
+| All 19 PHP endpoints parse | `token_get_all(..., TOKEN_PARSE)` on PHP 8.4 (wasm) | ✅ 19/19 clean |
+| Menu prices | `php tests/pricing.test.php` | ✅ 36 passed, 0 failed |
+| Browser price == server price | extracted `unitPrice()` from `customer.js` vs `validate_customizations()` on PHP, 285 option combinations × 78 seeded products | ✅ 0 mismatches (31 invalid combinations correctly refused) |
+| Both front-ends, end to end | real `customer.js`/`admin.js` driven in jsdom against API-shaped fixtures: sign-in, cart with options, pickup vs delivery totals, order placement, payment upload, order detail, payment confirm, menu CRUD, customer drill-down, session expiry | ✅ 46/46 checks |
+| SQL | every statement in `api/*.php` and `database.sql` parsed as MySQL (node-sql-parser) | ✅ 15/15 runtime statements, 18/19 schema statements — the one "failure" is `SET NAMES utf8mb4`, which the parser does not implement but MySQL does |
+| Endpoint/session alignment | script: every `require_admin()` endpoint must be an `admin-*.php` file, and each page may only call endpoints of its own area | ✅ all aligned (this check caught and fixed two mismatches: the screenshot endpoint and the admin product list) |
+| CSS/DOM contract | every class used in HTML/JS has a rule; every id the JS queries exists | ✅ 140 classes, 0 gaps |
+| CSP safety | no inline `on*=` handler, no inline `<script>`, no `@import`/remote `url()` in either page or stylesheet | ✅ |
+
+**Not verifiable here:** no PHP+MySQL stack and no reachable package mirrors in
+the sandbox, so DB-backed endpoints were exercised through their front-ends in
+jsdom and through the pure-PHP logic that both sides share, never against a live
+database. A 10-minute XAMPP smoke test closes that gap:
+
+1. Sign in as `admin@mochajaki.local` / `ChangeMe123!`.
+2. Place a pickup order with a 22 oz milkshake; check the total shows the size
+   surcharge and no delivery fee.
+3. Place a delivery order; the address and contact fields must appear and the
+   fee must be added.
+4. Submit a GCash reference with a screenshot, then open the order in the admin
+   panel, view the screenshot and confirm the payment.
+
+## Still open (owner action, not a code bug)
+
+- **A1** — the store's own `gcash-qr.png` / `maya-qr.png` cannot be generated for
+  you; until they are added, checkout shows a "ask the store for the account
+  details" note instead of a broken image.
+- **D2** — no pagination. Both lists are complete and correct, just unpaginated;
+  fine for a class project, worth revisiting if orders grow into the thousands.
+- `DELIVERY_FEE` stays `0.00` until the owner confirms the charge.

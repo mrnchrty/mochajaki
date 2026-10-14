@@ -1,55 +1,125 @@
+-- Mochajaki Food Ordering System — schema and starter data
+-- Import this file once into a fresh database (phpMyAdmin ➜ Import).
+--
+-- WARNING: it drops and recreates every table, so re-importing erases all
+-- existing accounts, orders and payments.
+--
+-- The CLI equivalent (note the charset flag — without it the curly apostrophe
+-- in "Finger Lick’n Good" can be mangled):
+--   mysql --default-character-set=utf8mb4 -u root < database.sql
+
 CREATE DATABASE IF NOT EXISTS mochajaki CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE mochajaki;
-SET FOREIGN_KEY_CHECKS=0;
-DROP TABLE IF EXISTS payment_submissions;
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS login_attempts;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS users;
-SET FOREIGN_KEY_CHECKS=1;
 
+-- ─── Accounts ─────────────────────────────────────────────────────────────
+-- Customers register through the site; admins are created here.
 CREATE TABLE users (
- id INT AUTO_INCREMENT PRIMARY KEY, full_name VARCHAR(120) NOT NULL,
- email VARCHAR(190) NOT NULL UNIQUE, password_hash VARCHAR(255) NOT NULL,
- role ENUM('customer','admin') NOT NULL DEFAULT 'customer',
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  full_name     VARCHAR(120) NOT NULL,
+  email         VARCHAR(190) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role          ENUM('customer','admin') NOT NULL DEFAULT 'customer',
+  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
+
+-- ─── Menu ─────────────────────────────────────────────────────────────────
+-- Price is the normal price; option prices (extra rice, sizes, add-ons) live in
+-- api/pricing.php so the shop can change them without touching the database.
 CREATE TABLE products (
- id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150) NOT NULL,
- category VARCHAR(80) NOT NULL, description TEXT,
- price DECIMAL(10,2) NOT NULL, image_url VARCHAR(500),
- is_available TINYINT(1) NOT NULL DEFAULT 1,
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- INDEX idx_products_category(category), INDEX idx_products_available(is_available)
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  name         VARCHAR(150) NOT NULL,
+  category     VARCHAR(80) NOT NULL,
+  description  TEXT,
+  price        DECIMAL(10,2) NOT NULL,
+  image_url    VARCHAR(500),
+  is_available TINYINT(1) NOT NULL DEFAULT 1,
+  created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_products_category (category),
+  INDEX idx_products_available (is_available)
 ) ENGINE=InnoDB;
+
+-- ─── Orders ───────────────────────────────────────────────────────────────
 CREATE TABLE orders (
- id BIGINT AUTO_INCREMENT PRIMARY KEY, order_code VARCHAR(40) NOT NULL UNIQUE,
- customer_id INT NOT NULL, order_type ENUM('Pickup','Delivery') NOT NULL DEFAULT 'Pickup',
- delivery_address VARCHAR(500), subtotal DECIMAL(10,2) NOT NULL,
- delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0, total DECIMAL(10,2) NOT NULL,
- status ENUM('Order Placed','Confirmed','Preparing','Ready for Pickup','Out for Delivery','Completed','Cancelled') NOT NULL DEFAULT 'Order Placed',
- created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY(customer_id) REFERENCES users(id), INDEX idx_orders_customer(customer_id), INDEX idx_orders_status(status)
+  id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_code       VARCHAR(40) NOT NULL UNIQUE,
+  customer_id      INT NOT NULL,
+  order_type       ENUM('Pickup','Delivery') NOT NULL DEFAULT 'Pickup',
+  delivery_address VARCHAR(500),
+  contact_number   VARCHAR(30),
+  notes            VARCHAR(300),
+  subtotal         DECIMAL(10,2) NOT NULL,
+  delivery_fee     DECIMAL(10,2) NOT NULL DEFAULT 0,
+  total            DECIMAL(10,2) NOT NULL,
+  status           ENUM('Order Placed','Confirmed','Preparing','Ready for Pickup','Out for Delivery','Completed','Cancelled')
+                   NOT NULL DEFAULT 'Order Placed',
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (customer_id) REFERENCES users(id),
+  INDEX idx_orders_customer (customer_id),
+  INDEX idx_orders_status (status)
 ) ENGINE=InnoDB;
+
 CREATE TABLE order_items (
- id BIGINT AUTO_INCREMENT PRIMARY KEY, order_id BIGINT NOT NULL, product_id INT NULL,
- product_name VARCHAR(150) NOT NULL, quantity INT NOT NULL,
- unit_price DECIMAL(10,2) NOT NULL, line_total DECIMAL(10,2) NOT NULL,
- customizations JSON NULL,
- FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
- FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE SET NULL
+  id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_id       BIGINT NOT NULL,
+  product_id     INT NULL,
+  product_name   VARCHAR(150) NOT NULL,
+  quantity       INT NOT NULL,
+  unit_price     DECIMAL(10,2) NOT NULL,
+  line_total     DECIMAL(10,2) NOT NULL,
+  customizations JSON NULL,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
+
+-- ─── Payments ─────────────────────────────────────────────────────────────
+-- Cash orders start at 'Pending' and an admin marks them 'Paid' when the money
+-- arrives. E-wallets wait at 'Pending Verification' until an admin checks the
+-- reference (and optional screenshot) and confirms, rejects or refunds them.
 CREATE TABLE payments (
- id BIGINT AUTO_INCREMENT PRIMARY KEY, order_id BIGINT NOT NULL,
- method ENUM('Cash','GCash','Maya') NOT NULL, amount DECIMAL(10,2) NOT NULL,
- status ENUM('Pending','Pending Verification','Paid','Failed','Refunded') NOT NULL DEFAULT 'Pending',
- gateway_reference VARCHAR(190), payment_screenshot VARCHAR(500), verified_by INT NULL,
- verified_at DATETIME NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
- FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
- FOREIGN KEY(verified_by) REFERENCES users(id) ON DELETE SET NULL,
- INDEX idx_payments_status(status)
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_id           BIGINT NOT NULL,
+  method             ENUM('Cash','GCash','Maya') NOT NULL,
+  amount             DECIMAL(10,2) NOT NULL,
+  status             ENUM('Pending','Pending Verification','Paid','Failed','Refunded') NOT NULL DEFAULT 'Pending',
+  gateway_reference  VARCHAR(190),
+  payment_screenshot VARCHAR(500),
+  verified_by        INT NULL,
+  verified_at        DATETIME NULL,
+  created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_payments_status (status),
+  INDEX idx_payments_order (order_id)
 ) ENGINE=InnoDB;
+
+-- ─── Sign-in throttling ───────────────────────────────────────────────────
+-- One row per failed attempt (scope: login / password / register). Rows older
+-- than a day are pruned automatically by api/config.php.
+CREATE TABLE login_attempts (
+  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+  scope      ENUM('login','password','register') NOT NULL DEFAULT 'login',
+  email      VARCHAR(190) NOT NULL,
+  ip         VARCHAR(45) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_attempts_lookup (scope, email, created_at),
+  INDEX idx_attempts_ip (scope, ip, created_at)
+) ENGINE=InnoDB;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ─── Starter data ─────────────────────────────────────────────────────────
+-- Default administrator: admin@mochajaki.local / ChangeMe123!
+-- Change this password after the first sign-in (My account ➜ Change password).
 
 INSERT INTO users(full_name,email,password_hash,role) VALUES
 ('Mochajaki Administrator','admin@mochajaki.local','$2y$12$93gPWlabb92aK9gxFDWO0uQuDBlrY6Uul/YKLh1W.AALCNo/U5X.O','admin');

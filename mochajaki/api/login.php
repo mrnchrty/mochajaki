@@ -1,1 +1,16 @@
-<?php require __DIR__.'/config.php';method_is('POST');$d=body_json();$email=strtolower(trim((string)($d['email']??'')));$pass=(string)($d['password']??'');if(!filter_var($email,FILTER_VALIDATE_EMAIL)||$pass==='')json_out(['error'=>'Enter your email and password.'],422);$s=$pdo->prepare('SELECT id,full_name,email,password_hash,role FROM users WHERE email=?');$s->execute([$email]);$u=$s->fetch();if(!$u||!password_verify($pass,$u['password_hash']))json_out(['error'=>'Invalid email or password.'],401);if(!empty($d['admin_only'])&&$u['role']!=='admin')json_out(['error'=>'Administrator access only.'],403);session_regenerate_id(true);$_SESSION['user']=clean_user($u);json_out(['user'=>$_SESSION['user']]);?>
+<?php
+/**
+ * Customer-area sign-in.
+ * Admins may also sign in here (they will simply see the customer site).
+ */
+require __DIR__ . '/config.php';
+method_is('POST');
+
+$data  = body_json();
+$email = strtolower(trim((string) ($data['email'] ?? '')));
+$pass  = (string) ($data['password'] ?? '');
+
+$user = attempt_login($pdo, $email, $pass, false);
+
+$_SESSION['user'] = clean_user($user);
+json_out(['user' => $_SESSION['user']]);

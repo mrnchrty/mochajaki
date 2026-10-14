@@ -1,0 +1,22 @@
+# Mochajaki — Apache settings.
+# These rules only work when Apache allows .htaccess overrides; XAMPP's default
+# configuration for htdocs already sets "AllowOverride All".
+
+# 1. No directory listings. Without this, anyone could browse
+#    /assets/payments/uploads/ and look at every customer's payment receipt.
+Options -Indexes
+
+# 2. Security headers for the pages, the scripts and the API responses.
+<IfModule mod_headers.c>
+    # The pages load scripts only from this site and contain no inline
+    # JavaScript, so injected markup cannot run. 'unsafe-inline' is granted to
+    # styles only, which is far less dangerous than inline script.
+    Header always set Content-Security-Policy "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "same-origin"
+</IfModule>
+
+# 3. Do not serve dotfiles (.htaccess, editor backups, …).
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
